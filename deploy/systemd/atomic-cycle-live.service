@@ -15,7 +15,7 @@ EnvironmentFile=/etc/atomic-cycle-engine/live.env
 Environment=BASE_STATE_DIRECTORY=/var/lib/atomic-cycle-engine
 LoadCredential=base-cycle-signer:/etc/atomic-cycle-engine/base-signer.key
 UMask=0077
-ExecStart=/usr/bin/node /opt/atomic-cycle-engine/current/dist/src/cli/base-live-watch.js
+ExecStart=/usr/local/bin/node /opt/atomic-cycle-engine/current/dist/src/cli/base-live-watch.js
 Restart=on-failure
 RestartSec=10s
 TimeoutStopSec=20

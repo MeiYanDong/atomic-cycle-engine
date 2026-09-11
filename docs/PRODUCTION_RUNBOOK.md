@@ -13,6 +13,8 @@
 7. 把读回的地址写入 `BASE_EXECUTOR_ADDRESS`，再次运行 `status`，然后单独运行 `arm` 并保存 arm 回执。
 8. 只有上述读回成功后才创建 `/etc/atomic-cycle-engine/LIVE_APPROVED`，启用并启动 systemd 服务。
 
+当前目标 SWAS 主机的 Node 固定路径是 `/usr/local/bin/node`；发布前必须运行 `systemd-analyze verify`，不能假设发行版默认的 `/usr/bin/node` 存在。
+
 ## 激活后读回
 
 至少核对：
