@@ -7,7 +7,7 @@
 当前包含两条边界清晰的能力线：
 
 1. 通用 2–4 跳研究核心：Phase 0 complete / Phase 1A bounded discovery，仍为 shadow；
-2. Base 实盘金丝雀：只覆盖 WETH 与 10 个明确 allowlist token 之间的规范 Uniswap V2/V3 两池闭环，已实现签名、广播、原子执行和回执对账，但是否生产激活必须以实时部署读回为准。
+2. Base 实盘金丝雀：只覆盖 WETH 与 10 个明确 allowlist token 之间的规范 Uniswap V2/V3 两池闭环，已实现签名、广播、原子执行和回执对账；2026-09-11 的生产激活由单独证据快照记录，当前状态仍须实时读回。
 
 已经实现：
 
@@ -49,6 +49,7 @@ npm run test:fork
 - [实盘运行手册](docs/PRODUCTION_RUNBOOK.md)
 - [Sniper Engineering 规格](spec/sniper-spec.json)
 - [Phase 1A 真实读回](docs/evidence/2026-09-11-phase1a-bounded-census.md)
+- [Base 实盘激活证据](docs/evidence/2026-09-11-base-live-activation.md)
 
 ## 证据语言
 

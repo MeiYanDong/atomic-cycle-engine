@@ -9,6 +9,7 @@
 - 增加独立生产 systemd unit、配置模板、ADR 与 UNKNOWN/disarm 运行手册；实现、授权、激活和盈利继续分开陈述。
 - 加入 Base 与 Robinhood Chain 的类型化、有界、gap-aware 工厂事件扫描。
 - 验证并支持 systemd credential 的 root-owned `0440` 只读挂载，同时继续拒绝可写目录、other-readable 文件和普通宽权限密钥文件。
+- 以固定提交在 Base 部署并武装 0.003 WETH 金丝雀合约，完成主网回执、链上配置、systemd、heartbeat 与旧服务恢复读回；激活时尚无套利成交或收益。
 - 从 Aerodrome FactoryRegistry 动态核对 Standard 与三代 Slipstream 工厂。
 - 用公共 RPC 完成两条链各 250 区块的只读发现窗口，不把池创建事件误报为套利利润。
 - 证据序列化省略未定义可选字段，合约 bytecode 在同一明确块高读取。
