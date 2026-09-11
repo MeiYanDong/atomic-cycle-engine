@@ -6,7 +6,7 @@
 
 | 要求           | 证据                                                   | 当前结论                                                                                  |
 | -------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| 高风险边界测试 | `test/*.test.ts`、`scripts/base-contract-test.mjs`     | 34/34；合约双向正路径、13 个拒绝边界和回执经济对账均通过                                  |
+| 高风险边界测试 | `test/*.test.ts`、`scripts/base-contract-test.mjs`     | 36/36；合约双向正路径、13 个拒绝边界和回执经济对账均通过                                  |
 | 主网分叉测试   | `scripts/base-fork-test.mjs`                           | 规范 Base WETH/Uniswap V2/V3 双向均走到链上利润门禁，写入仅发生在本地 fork                |
 | 自动化门禁     | `npm run check`                                        | format、lint、Solhint、typecheck、spec、compile、test、secret scan 串行失败关闭           |
 | 合并前 CI      | `.github/workflows/ci.yml`                             | PR/push 自动运行 `npm ci` 与 `npm run check`；尚未推送，因此云端 Actions 状态为 `NOT_RUN` |

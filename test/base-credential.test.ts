@@ -37,4 +37,32 @@ void describe('Base signer credential boundary', () => {
       /permissions are too broad/,
     )
   })
+
+  void it('accepts the read-only 0440 file boundary used by systemd credentials', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'base-cycle-systemd-credential-'))
+    const credential = join(directory, 'base-cycle-signer')
+    await writeFile(
+      credential,
+      '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n',
+      { mode: 0o440 },
+    )
+    await chmod(directory, 0o550)
+    const account = await loadSignerAccount({ credentialsDirectory: directory })
+    assert.equal(account.address, '0xFCAd0B19bB29D4674531d6f115237E16AfCE377c')
+  })
+
+  void it('rejects a systemd-style credential in a group-writable directory', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'base-cycle-systemd-invalid-'))
+    const credential = join(directory, 'base-cycle-signer')
+    await writeFile(
+      credential,
+      '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n',
+      { mode: 0o440 },
+    )
+    await chmod(directory, 0o570)
+    await assert.rejects(
+      loadSignerAccount({ credentialsDirectory: directory }),
+      /systemd signer credential boundary is invalid/,
+    )
+  })
 })
