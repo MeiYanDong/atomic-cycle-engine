@@ -13,6 +13,7 @@ Group=atomic-cycle
 WorkingDirectory=/opt/atomic-cycle-engine/current
 EnvironmentFile=/etc/atomic-cycle-engine/live.env
 Environment=BASE_STATE_DIRECTORY=/var/lib/atomic-cycle-engine
+Environment=BASE_PUBLIC_HEARTBEAT_PATH=/run/atomic-cycle-portfolio/heartbeat.json
 LoadCredential=base-cycle-signer:/etc/atomic-cycle-engine/base-signer.key
 UMask=0077
 ExecStart=/usr/local/bin/node /opt/atomic-cycle-engine/current/dist/src/cli/base-live-watch.js
@@ -22,6 +23,9 @@ TimeoutStopSec=20
 KillSignal=SIGTERM
 StateDirectory=atomic-cycle-engine
 StateDirectoryMode=0700
+RuntimeDirectory=atomic-cycle-portfolio
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=restart
 MemoryMax=384M
 TasksMax=64
 OOMPolicy=stop

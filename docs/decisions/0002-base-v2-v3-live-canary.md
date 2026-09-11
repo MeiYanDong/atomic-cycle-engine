@@ -35,4 +35,5 @@
 - 部署必须产生成功的 Base 主网回执，读回 operator、disarmed、allowlist、不可变上限和 `0.003 WETH` seed；
 - arm 必须是第二笔独立交易并读回 `armed=true`；
 - systemd 必须读到 credential、LIVE_APPROVED marker 和非敏感环境文件，启动后持续更新中文 heartbeat；
+- 同机经营面板只能读取独立的白名单心跳投影，不能读取私钥、尝试账本、错误原文或签名原文；
 - 只有出现 `RECONCILED_SUCCESS` EffectRecord，且已扣除 L2 Gas、L1 data fee 与 operator fee，才能声明一笔已实现净利润。

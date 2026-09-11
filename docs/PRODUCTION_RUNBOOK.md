@@ -12,6 +12,7 @@
 6. 到账且余额满足资金边界后，设置授权 ID 并运行 `npm run live:admin -- deploy`。保存部署哈希与合约地址，链上读回必须为 `DISARMED`。
 7. 把读回的地址写入 `BASE_EXECUTOR_ADDRESS`，再次运行 `status`，然后单独运行 `arm` 并保存 arm 回执。
 8. 只有上述读回成功后才创建 `/etc/atomic-cycle-engine/LIVE_APPROVED`，启用并启动 systemd 服务。
+9. 若同机的只读经营面板需要 Base 运行摘要，仅读取 `/run/atomic-cycle-portfolio/heartbeat.json`。该文件只有白名单字段；不得放宽 `/var/lib/atomic-cycle-engine`、签名凭据或尝试账本的权限。
 
 当前目标 SWAS 主机的 Node 固定路径是 `/usr/local/bin/node`；发布前必须运行 `systemd-analyze verify`，不能假设发行版默认的 `/usr/bin/node` 存在。
 
@@ -25,9 +26,12 @@ systemctl is-active atomic-cycle-live.service
 systemctl show atomic-cycle-live.service -p MainPID -p NRestarts -p Result
 journalctl -u atomic-cycle-live.service --since '-10 min' --no-pager
 cat /var/lib/atomic-cycle-engine/heartbeat.json
+cat /run/atomic-cycle-portfolio/heartbeat.json
 ```
 
 状态必须同时满足：service 为 `active`、MainPID 非零、最近 heartbeat 为“实盘监控中”、钱包和合约与链上读回一致。没有 `EFFECT/RECONCILED_SUCCESS` 时，收益仍为零，不得把“发现毛利候选”算成收益。
+
+公开心跳只是同机、组可读的只读投影；它不包含 RPC、私钥、raw transaction、路线或错误原文，也不替代私有账本和链上回执对账。
 
 ## 停止与恢复
 

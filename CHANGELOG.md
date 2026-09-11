@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Publish a same-host, group-readable Base runtime heartbeat containing only an explicit operations allowlist, while
+  keeping the signer credential, mutation ledger, RPC details, route failures and private heartbeat isolated.
+
 - 增加有界 Base 主网 Uniswap V2/V3 WETH 闭环金丝雀：10-token allowlist、不可变本金/毛利上限、原子无残余结算。
 - 增加 root-only/systemd credential Signer、单 nonce fence、同 raw 多 RPC 广播和 receipt/event/WETH/L1 fee 经济对账。
 - 增加 36 个 TypeScript 测试、双方向 Solidity 确定性测试，以及对规范 Base V2/V3 合约的主网分叉兼容测试。

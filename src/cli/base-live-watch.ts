@@ -23,6 +23,7 @@ import {
   type LiveLedgerRecord,
 } from '../live/base-v2-v3/ledger.js'
 import { amountGrid, loadBaseLivePolicy } from '../live/base-v2-v3/policy.js'
+import { writeBasePublicHeartbeat } from '../live/base-v2-v3/public-heartbeat.js'
 import { quoteBaseTokenCycles, type BaseCycleQuote } from '../live/base-v2-v3/quote.js'
 import { BASE_CANARY_TOKENS } from '../live/base-v2-v3/tokens.js'
 
@@ -96,7 +97,7 @@ function reconciliationPlan(
   }
 }
 
-async function writeHeartbeat(
+async function writePrivateHeartbeat(
   stateDirectory: string,
   heartbeat: Readonly<Record<string, unknown>>,
 ): Promise<void> {
@@ -138,7 +139,7 @@ async function reconcileOnStartup(records: readonly LiveLedgerRecord[]): Promise
     const effect = await reconcileReceipt(client, policy, ledgerPath, plan, receipt)
     return effect.outcome !== 'DISPUTED'
   } catch {
-    await writeHeartbeat(policy.stateDirectory, {
+    await publishHeartbeat({
       运行状态: '停止新增交易',
       原因: '上一笔交易仍未完成链上对账',
       交易哈希: plan.transactionHash,
@@ -177,6 +178,29 @@ const account = await loadSignerAccount({
     ? {}
     : { explicitCredentialFile: process.env.BASE_SIGNER_CREDENTIAL_FILE }),
 })
+const publicHeartbeatPath = process.env.BASE_PUBLIC_HEARTBEAT_PATH
+if (publicHeartbeatPath !== undefined && !path.isAbsolute(publicHeartbeatPath)) {
+  throw new Error('BASE_PUBLIC_HEARTBEAT_PATH must be absolute')
+}
+async function publishHeartbeat(heartbeat: Readonly<Record<string, unknown>>): Promise<void> {
+  const identified = {
+    ...heartbeat,
+    钱包: account.address,
+    合约: policy.executorAddress,
+  }
+  await writePrivateHeartbeat(policy.stateDirectory, identified)
+  if (publicHeartbeatPath === undefined) return
+  try {
+    await writeBasePublicHeartbeat(publicHeartbeatPath, identified)
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: 'PUBLIC_HEARTBEAT_WRITE_FAILED',
+        reason: error instanceof Error ? error.name : 'UNKNOWN_ERROR',
+      }),
+    )
+  }
+}
 const ledgerPath = path.join(policy.stateDirectory, 'attempts.jsonl')
 const observationPath = path.join(policy.stateDirectory, 'observations.jsonl')
 const fence = await acquireLiveFence(policy.stateDirectory)
@@ -189,7 +213,7 @@ process.on('SIGINT', () => {
 })
 
 try {
-  await writeHeartbeat(policy.stateDirectory, {
+  await publishHeartbeat({
     运行状态: '正在启动实盘监控',
     钱包: account.address,
     合约: policy.executorAddress,
@@ -208,7 +232,7 @@ try {
       throw new Error('unresolved attempt appeared while watcher was active')
     }
     if (summary.cumulativeFailedGasWei >= policy.cumulativeFailedGasCap) {
-      await writeHeartbeat(policy.stateDirectory, {
+      await publishHeartbeat({
         运行状态: '已触发 Gas 熔断',
         累计失败Gas_ETH: formatEther(summary.cumulativeFailedGasWei),
         熔断上限_ETH: formatEther(policy.cumulativeFailedGasCap),
@@ -255,7 +279,7 @@ try {
       最新观察区块: latestBlock?.toString() ?? null,
       更新时间: new Date().toISOString(),
     }
-    await writeHeartbeat(policy.stateDirectory, heartbeat)
+    await publishHeartbeat(heartbeat)
     if (tick === 1 || tick % 3 === 0 || attempted || positives.length > 0) {
       console.log(JSON.stringify(heartbeat))
     }
