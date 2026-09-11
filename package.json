@@ -1,7 +1,7 @@
 {
   "name": "atomic-cycle-engine",
   "version": "0.1.0",
-  "description": "Read-only, evidence-first engine for discovering and evaluating same-chain atomic arbitrage cycles",
+  "description": "Evidence-first engine for discovering, evaluating, and safely executing bounded same-chain atomic arbitrage cycles",
   "license": "MIT",
   "private": false,
   "type": "module",
@@ -23,27 +23,42 @@
   },
   "scripts": {
     "build": "tsc",
+    "contract:compile": "node scripts/compile-base-executor.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "eslint .",
+    "lint": "npm run lint:js && npm run lint:sol",
+    "lint:js": "eslint .",
+    "lint:sol": "solhint 'contracts/**/*.sol' 'test/contracts/**/*.sol'",
     "typecheck": "tsc --noEmit",
     "spec:check": "tsx scripts/validate-local-spec.ts",
     "test": "tsx --test test/*.test.ts",
+    "test:contract": "node scripts/base-contract-test.mjs",
+    "test:fork": "node scripts/base-fork-test.mjs",
     "census:window": "tsx src/cli/census-window.ts",
+    "canary:scan": "tsx src/cli/base-canary-scan.ts",
+    "live:admin": "tsx src/cli/base-live-admin.ts",
+    "live:watch": "tsx src/cli/base-live-watch.ts",
     "registry:verify": "tsx src/cli/verify-registry.ts",
     "secret:scan": "tsx scripts/secret-scan.ts",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run spec:check && npm test && npm run secret:scan"
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run spec:check && npm run contract:compile && npm test && npm run test:contract && npm run secret:scan"
   },
   "dependencies": {
+    "solc": "0.8.26",
     "viem": "2.56.3"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/node": "22.20.1",
     "eslint": "10.9.1",
+    "hardhat": "3.16.0",
     "prettier": "3.9.6",
+    "solhint": "6.2.4",
     "tsx": "4.23.13",
     "typescript": "5.9.3",
     "typescript-eslint": "8.57.1"
+  },
+  "overrides": {
+    "adm-zip": "0.6.1",
+    "tmp": "0.2.7"
   }
 }

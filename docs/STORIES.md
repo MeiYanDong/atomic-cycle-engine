@@ -106,16 +106,32 @@
 
 验收：按来源记录逻辑请求、实际 provider request、429/超时、单位成本和边际捕获机会；仅在增量净收益证据为正时提出付费扩容。
 
-## Phase 3 自有资金 Canary（未授权）
+## 已实现：Base V2/V3 自有资金 Canary 能力
 
 ### S3-01 原子执行合约
 
-验收：typed adapters、链上利润下限、资产守恒、Hook allowlist、reentrancy protection、无残余仓位；独立审计通过。
+验收：
+
+- 只允许 Base、规范 Uniswap V2/V3 工厂、WETH 起止和明确 token allowlist；
+- 链上本金上限、最低毛利、deadline、有效块、重入保护和无中间 token 残余仓位；
+- 任意 target/calldata/approve/delegatecall 不存在；
+- 确定性合约测试覆盖两个正向方向和关键拒绝边界；Base 主网分叉测试证明两个方向都能走到链上利润门禁；
+- 尚未完成独立第三方审计，首轮因此维持 `0.003 WETH` 不可变上限。
 
 ### S3-02 单钱包单 nonce owner
 
-验收：持久 fencing、唯一 nonce owner、同 raw fanout、规范链 reconcile；单 RPC null 永不终结 UNKNOWN。
+验收：持久 fencing、唯一 nonce owner、计划先落盘、同 raw fanout、规范链 receipt/event/WETH/L1 fee reconcile；单 RPC null 不得被记为收益或安全失败。
 
 ### S3-03 生产安全与发布
 
-验收：用户明确批准资金/Gas/部署；CI 构建不可变产物；灰度部署、运行时 readback、kill-switch 与恢复演练有证据。
+验收：用户明确批准专用地址、`0.01 ETH`、单笔 `0.003 WETH`、`0.005 ETH` 储备与累计失败 Gas `0.001 ETH`；CI 构建不可变产物；灰度部署、运行时 readback、disarm kill-switch 与 UNKNOWN 恢复有证据。实现完成不等于生产已激活，链上回执和 systemd 读回需单独记录。
+
+## 尚未实现：通用多池实盘
+
+### S4-01 更多协议与 3–4 跳 calldata
+
+验收：每个新增协议有独立 typed state/quote/calldata/risk adapter、真实分叉与 token-semantics 测试；不得把当前 V2/V3 两池合约宣传为任意多池执行器。
+
+### S4-02 事件驱动热路径与竞速归因
+
+验收：按池状态事件唤醒受影响路线，测量 source-to-wire、provider ack 和规范链胜者；公共 RPC 与付费 RPC 的边际捕获率可复算后再扩容。

@@ -3,6 +3,8 @@
 .env.*
 !.env.example
 coverage/
+artifacts/
+cache/
 dist/
 node_modules/
 reports/*.jsonl

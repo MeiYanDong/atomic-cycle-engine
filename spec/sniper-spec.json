@@ -1,25 +1,21 @@
 {
   "spec_version": "1.4",
-  "case_id": "atomic-cycle-engine-phase0",
-  "design_status": "approved_phase0_shadow",
-  "evidence_level": "repository_record",
-  "live_execution_authorized": false,
+  "case_id": "atomic-cycle-engine-base-v2-v3-canary",
+  "design_status": "approved_bounded_live_canary_pending_runtime_readback",
+  "evidence_level": "repository_record_plus_live_read_and_fork_observation",
+  "live_execution_authorized": true,
   "objective": {
     "statement": "Measure and maximize risk-adjusted net return for a same-chain 2-4 hop atomic cycle while preserving state identity, authorization, settlement truth, and a complete opportunity denominator.",
     "risk_budget": {
-      "principal": {
-        "state": "UNKNOWN",
-        "reason": "Phase 0 is read-only and no live principal is authorized."
-      },
-      "gas": {
-        "state": "UNKNOWN",
-        "reason": "Phase 0 cannot broadcast and must not invent a live gas-loss budget."
-      },
-      "structural_bound": "No wallet, signer, raw transaction, broadcast, deployment, or residual position capability exists in Phase 0."
+      "max_input_native": 0.003,
+      "min_signer_reserve_native": 0.005,
+      "cumulative_failed_gas_cap_native": 0.001,
+      "max_concurrent_nonce_lanes": 1,
+      "structural_bound": "Base chain 8453 only; WETH settlement; canonical Uniswap V2/V3 two-pool cycles; ten-token allowlist; no arbitrary target, calldata, approval, delegatecall, or residual intermediate position."
     },
     "success_semantics": {
       "shadow_candidate": "Every hop and gas conversion share one state commitment and net profit remains above the proposed floor after all modeled costs.",
-      "live_success": "Not available in Phase 0; a future EffectRecord must prove canonical receipt success, positive attributable settlement-asset delta, and FLAT residual exposure.",
+      "live_success": "A RECONCILED_SUCCESS EffectRecord proves canonical receipt success, route event identity, positive executor WETH delta, known L2 gas, Base L1 data fee and operator fee, economic net above the approved floor, and FLAT residual exposure.",
       "unknown": "Any missing state, quote, coverage, receipt, balance, cost, or causal attribution remains UNKNOWN rather than inferred."
     }
   },
@@ -46,7 +42,7 @@
       "basis": "STATE",
       "origin": "immutable opportunity snapshot",
       "absolute_value": "all required pool states, gas conversion, route identity, and policy commitment are known",
-      "behavior": "Phase 0 may evaluate and record shadow results only; it cannot prepare a signable transaction or broadcast before or after activation."
+      "behavior": "Before all state, contract, authorization, balance and cost commitments are known the candidate remains read-only. After activation it may prepare and sign once, then broadcast the identical raw transaction before the composite boundary expires."
     },
     "boundary": {
       "termination_rule": "ANY",
@@ -77,7 +73,9 @@
       "before_route_evaluation",
       "before_each_quote",
       "before_gas_conversion",
-      "before_shadow_record"
+      "before_full_simulation",
+      "before_sign",
+      "before_broadcast"
     ],
     "timeline_fields": [
       "source_occurred_at",
@@ -91,10 +89,10 @@
   },
   "profile": {
     "strategy": "generic_same_chain_atomic_cycle",
-    "operation_mode": "shadow",
-    "network_scope": ["base-mainnet", "robinhood-chain-mainnet"],
-    "route_scope": "2-4 hop typed and allowlisted AMM adapters",
-    "runtime_readback": "not_applicable_no_service"
+    "operation_mode": "live",
+    "network_scope": ["base-mainnet"],
+    "route_scope": "WETH-token-WETH using canonical Uniswap V2 and V3 in either order with a ten-token capital allowlist",
+    "runtime_readback": "pending production deployment, arm transaction, service PID and heartbeat readback"
   },
   "decision": {
     "correctness_invariants": [
@@ -159,24 +157,24 @@
         "fallback": "keep the affected source discovery-only"
       },
       {
-        "id": "phase0_write_block",
-        "condition": "live_execution_authorized is false and sign, broadcast, and calldata capabilities remain UNSUPPORTED.",
-        "risk_reduced": "Prevents the research foundation from moving funds.",
-        "false_block_cost": "No Phase 0 transaction can be attempted.",
+        "id": "bounded_live_scope",
+        "condition": "Signing requires the dedicated Base signer, deployed executor readback, manual authorization id, runtime arm, on-chain arm, approved token, immutable 0.003 WETH principal cap, 0.005 ETH signer reserve and unresolved-attempt-free nonce lane.",
+        "risk_reduced": "Prevents a research adapter, wrong wallet, wrong contract, stale approval or concurrent nonce owner from moving funds.",
+        "false_block_cost": "One otherwise profitable cycle is missed until every capital-bearing commitment is restored.",
         "latency_budget_ms": 0,
         "latency_estimate": {
           "state": "KNOWN",
           "p95_ms": 0,
-          "basis": "Static capability and runtime RPC allowlist checks."
+          "basis": "Runtime policy tests, credential permission tests, nonce-fence tests and on-chain executor state validation."
         },
         "voi_estimate": {
           "state": "KNOWN",
-          "expected_loss_reduction": "Eliminates Phase 0 principal and gas loss from transaction submission.",
-          "basis": "Authorization invariant."
+          "expected_loss_reduction": "Caps one trade principal and cumulative known failed gas while isolating signing to the approved Base canary.",
+          "basis": "Authorization and capital-bound invariant."
         },
         "blocking_mode": "block",
-        "isolation_scope": "global",
-        "fallback": "remain shadow-only"
+        "isolation_scope": "wallet_lane",
+        "fallback": "do not sign and continue read-only scanning"
       }
     ],
     "adaptive_gates": [
@@ -188,11 +186,11 @@
         "latency_budget_ms": 0,
         "latency_estimate": {
           "state": "UNKNOWN",
-          "reason": "Live protocol adapters and latency distributions are not implemented."
+          "reason": "The Base V2/V3 adapter is implemented, but production p95 latency and public-RPC tail behavior are not yet measured."
         },
         "voi_estimate": {
           "state": "UNKNOWN",
-          "reason": "Avoided false-positive and missed-edge distributions require Phase 1 evidence."
+          "reason": "Avoided false-positive and missed-edge distributions require live opportunity and canonical outcome evidence."
         },
         "blocking_mode": "degrade",
         "isolation_scope": "capability",
@@ -240,34 +238,35 @@
     ]
   },
   "execution": {
-    "mode": "shadow",
-    "profile": "read_only_atomic_cycle_research",
+    "mode": "guarded_atomic_profit",
+    "profile": "bounded_base_v2_v3_live_canary",
     "min_out": {
       "mode": "atomic_profit_floor",
-      "formula": "future amountOutMinimum = amountIn + approvedMinimumNetProfit",
-      "live_effect": false
+      "formula": "amountOut = amountIn + grossProfit and grossProfit >= max(contract floor, maximum L2 gas plus buffered Base L1 data fee plus buffered operator fee plus approved minimum net profit)",
+      "live_effect": true
     },
     "authorization": {
       "mode": "MANUAL_ARM",
-      "scope_binding": "A future approval must bind chain, signer, settlement asset, typed route set, principal, gas-loss budget, profit floor, expiry, and immutable plan hash.",
-      "expiry_policy": "The earliest of manual arm expiry and the composite opportunity boundary.",
-      "evidence_record": "Append-only AuthorizationRecord in a future separately reviewed execution module.",
-      "live_effect": false
+      "scope_binding": "ADR 0002 binds Base chain 8453, the dedicated signer, WETH settlement, canonical Uniswap V2/V3, token allowlist, 0.003 WETH principal, 0.005 ETH reserve, 0.001 ETH failed-gas cap and per-opportunity immutable signed plan.",
+      "expiry_policy": "Manual disarm or the earliest deadline, valid-through block, policy gate, failed-gas fuse, unknown receipt, disputed effect or reserve violation.",
+      "evidence_record": "Authorization id is persisted in each append-only PLAN record and deployment scope is recorded in ADR 0002.",
+      "live_effect": true
     },
-    "signing_policy": "UNSUPPORTED in Phase 0.",
-    "broadcast_policy": "UNSUPPORTED in Phase 0.",
-    "rpc_policy": "Only explicitly allowlisted read methods are available."
+    "nonce_policy": "One persisted local nonce owner; an unresolved signed PLAN blocks new risk.",
+    "signing_policy": "Sign exactly one immutable EIP-1559 raw transaction after full-call simulation and all policy checks.",
+    "broadcast_policy": "Fan out only that same raw transaction to one to four endpoints; never create endpoint-specific replacements for the same attempt.",
+    "rpc_policy": "Public Base RPC is the initial read and broadcast path; authenticated providers require separate economic justification."
   },
   "recovery": {
-    "phase0": "No transaction can exist; malformed state or RPC failures produce BLOCKED_CORRECTNESS, BLOCKED_RESOURCE, or UNKNOWN evidence.",
-    "future_receipt_timeout": "UNKNOWN until multi-source canonical reconciliation converges.",
+    "receipt_timeout": "Persist UNKNOWN and halt the wallet lane until the same transaction hash is reconciled against canonical chain state.",
     "single_rpc_null_policy": "never terminal",
-    "restart_policy": "Resume from append-only evidence and coverage watermarks; never assume skipped blocks are empty."
+    "restart_policy": "Acquire the nonce fence and reconcile any unresolved signed PLAN before scanning or signing a new opportunity.",
+    "kill_switch": "Stop the watcher, wait for its nonce fence to release, then submit setArmed(false); stale execute plans still expire by deadline and valid-through block."
   },
   "exit": {
-    "phase0": "No positions can be created.",
-    "future_atomic_success": "FLAT in the settlement asset; no ExitPlan.",
-    "future_residual": "Any nonzero or unknown residual creates an OPEN or UNKNOWN Position and blocks that wallet lane.",
+    "policy": "Every successful transaction is atomically FLAT in WETH; there is no non-atomic inventory exit path.",
+    "atomic_success": "The intermediate token balance equals its pre-trade balance and all proceeds remain WETH in the executor.",
+    "residual": "The contract reverts on any intermediate-token balance difference; any contradictory receipt or balance observation becomes DISPUTED and blocks the wallet lane.",
     "live_residual_recovery_authorized": false
   },
   "evidence": {
@@ -295,9 +294,9 @@
   "capabilities": {
     "transport": {
       "level": "TESTED",
-      "access": "READ",
+      "access": "WRITE",
       "limitations": [
-        "HTTP read allowlist and registry smoke CLI only; no production redundancy or WebSocket adapter."
+        "Same-raw HTTP fanout is implemented and public Base RPC reads were observed; production provider ack latency and Flashblocks transport are not yet verified."
       ]
     },
     "discovery": {
@@ -318,48 +317,56 @@
       "level": "TESTED",
       "access": "READ",
       "limitations": [
-        "Cycle evaluation and v2 math use fixtures; no live v2/v3/v4/Aerodrome quote adapter exists."
+        "Canonical Base Uniswap V2 reserve math plus V3 QuoterV2 exact quotes are tested and live-read; other protocols and 3-4 hop exact quote adapters remain shadow-only."
       ]
     },
     "simulation": {
-      "level": "PLANNED",
+      "level": "TESTED",
       "access": "READ",
-      "limitations": ["No fork, trace, Hook, or token-semantics simulation adapter exists."]
+      "limitations": [
+        "Deterministic contract tests and a current Base mainnet fork exercise both directions through the on-chain profit gate; third-party audit and broad non-standard-token fuzzing are not complete."
+      ]
     },
     "calldata": {
-      "level": "UNSUPPORTED",
+      "level": "TESTED",
       "access": "PREPARE",
-      "limitations": ["Phase 0 cannot produce signable transaction payloads."]
+      "limitations": [
+        "Only the typed BaseV2V3CycleExecutor execute route is supported; arbitrary and generic multi-hop calldata remain unsupported."
+      ]
     },
     "sign": {
-      "level": "UNSUPPORTED",
-      "access": "WRITE",
-      "limitations": ["No wallet, private key, account request, or signer dependency is present."]
-    },
-    "broadcast": {
-      "level": "UNSUPPORTED",
+      "level": "TESTED",
       "access": "WRITE",
       "limitations": [
-        "eth_sendRawTransaction and all non-read RPC methods are rejected before transport."
+        "Root-only or systemd credential loading and immutable transaction signing are implemented; no production transaction has been signed before funded deployment."
+      ]
+    },
+    "broadcast": {
+      "level": "IMPLEMENTED",
+      "access": "WRITE",
+      "limitations": [
+        "Same-raw fanout and endpoint-safe evidence exist; production mainnet acceptance and provider diversity remain unverified until activation."
       ]
     },
     "reconcile": {
-      "level": "PLANNED",
+      "level": "TESTED",
       "access": "RECOVER",
       "limitations": [
-        "Coverage watermark exists; receipt, nonce, balance, and EffectRecord reconciliation do not."
+        "Nonce fencing, durable PLAN/BROADCAST/UNKNOWN/EFFECT stages, canonical receipt/event/WETH/L1-data-fee/operator-fee checks and restart blocking are implemented; production receipts do not yet exist."
       ]
     },
     "exit": {
-      "level": "UNSUPPORTED",
+      "level": "TESTED",
       "access": "RECOVER",
-      "limitations": ["Phase 0 cannot create a position, so no live exit capability is authorized."]
+      "limitations": [
+        "Atomic residual rejection and operator disarm/withdraw-while-disarmed are tested; no non-atomic token position recovery is authorized."
+      ]
     },
     "replay": {
       "level": "TESTED",
       "access": "READ",
       "limitations": [
-        "Deterministic synthetic graph and quote fixtures only; historical chain replay is planned."
+        "Deterministic synthetic execution and current Base fork compatibility are covered; historical opportunity and competitor replay remain planned."
       ]
     }
   },
@@ -367,13 +374,17 @@
     "reward_source": "Transient disagreement between executable AMM paths; the first state-changing capture is economically funded by the pre-existing pool imbalance after LP fees, protocol costs, gas, and financing.",
     "allocation": "EXCLUSIVE_STATE_CLAIM",
     "sequencing_rule": {
-      "type": "UNKNOWN",
-      "evidence_state": "UNKNOWN",
-      "reason": "Phase 0 has not measured sequencer ordering, competitor submission paths, or same-opportunity winners on Base and Robinhood Chain. Phase 1 will discriminate with canonical block position and causal state changes."
+      "type": "FEE_PRIORITY",
+      "evidence_state": "KNOWN",
+      "evidence_refs": [
+        "https://docs.optimism.io/op-stack/protocol/differences#transactions",
+        "https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_maxPriorityFeePerGas"
+      ],
+      "fee_curve": "Use the current EIP-1559 max-priority-fee estimate without replacement bidding, subject to a 1 gwei max-fee ceiling; fee priority influences inclusion but does not bypass the atomic positive-profit floor."
     },
     "earliest_public_signal": "A canonical or pending pool-state change, liquidity change, or new pool event observable from a chain endpoint.",
     "earliest_inferable_signal": "A locally maintained dependency graph predicts that one changed pool may create a cycle before full-graph scanning.",
-    "earliest_safe_action": "A typed route has exact same-state quotes, complete cost conversion, an immutable identity, and an atomic on-chain profit floor; Phase 0 still records only shadow evidence.",
+    "earliest_safe_action": "The Base V2/V3 typed route has an exact quote, complete L2 plus L1 data fee plus operator fee bound, immutable identity, full executor simulation, signer reserve, nonce ownership and an atomic on-chain profit floor.",
     "controllable_edges": [
       "INFORMATION",
       "DECISION",
@@ -436,7 +447,7 @@
       "fee_policy"
     ],
     "ordering_evidence": [
-      "UNKNOWN record plus future canonical block and transaction positions for the exact opportunity identity."
+      "OP Stack documentation states that sequencer tx-pool execution uses highest priority fee first; Base documents the EIP-1559 priority fee as a tip paid to its sequencer. Same-fee tie behavior and competitor private paths remain unknown and are measured from canonical positions."
     ],
     "sample_policy": {
       "minimum_total": 30,
@@ -446,15 +457,21 @@
   "shot_policy": {
     "profiles": [
       {
-        "id": "phase0_no_shot",
+        "id": "base-v2-v3-positive-net-only",
+        "profile": "REACTIVE_GUARDED",
+        "race_mode": "PROFIT",
+        "reason": "Sign only after exact quote, buffered full-cost positive net, full executor simulation, fresh block boundary and all wallet/contract risk gates."
+      },
+      {
+        "id": "all-other-routes",
         "profile": "NO_SHOT",
         "race_mode": "SHADOW",
-        "reason": "Discovery, live quotes, ordering evidence, signer, broadcast, reconcile, and execution contracts are not complete."
+        "reason": "Protocols, tokens and route shapes outside the Base V2/V3 canary remain research-only."
       }
     ],
     "race_experiment": {
       "enabled": false,
-      "reason": "No live transaction is required to validate Phase 0 correctness."
+      "reason": "The watcher never submits a loss-seeking probe; every live attempt must satisfy the profit shot profile, so no attempt-count experiment budget is used."
     }
   },
   "race_timeline": {

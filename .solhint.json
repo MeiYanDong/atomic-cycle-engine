@@ -1,0 +1,17 @@
+{
+  "extends": "solhint:recommended",
+  "rules": {
+    "compiler-version": ["error", "0.8.26"],
+    "avoid-low-level-calls": "off",
+    "func-name-mixedcase": "off",
+    "func-visibility": ["error", { "ignoreConstructors": true }],
+    "gas-custom-errors": "error",
+    "gas-indexed-events": "off",
+    "gas-strict-inequalities": "off",
+    "immutable-vars-naming": "off",
+    "max-line-length": ["error", 120],
+    "one-contract-per-file": "off",
+    "reentrancy": "off",
+    "use-natspec": "off"
+  }
+}

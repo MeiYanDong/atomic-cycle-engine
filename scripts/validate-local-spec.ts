@@ -29,19 +29,23 @@ async function main(): Promise<void> {
   )
   if (missing.length > 0) throw new Error(`missing object sections: ${missing.join(', ')}`)
   if (spec.spec_version !== '1.4') throw new Error('spec_version must be 1.4')
-  if (spec.live_execution_authorized !== false) {
-    throw new Error('phase 0 must explicitly disable live execution')
+  if (spec.live_execution_authorized !== true) {
+    throw new Error('the bounded Base canary must record its explicit live authorization')
   }
 
   const profile = spec.profile as Record<string, unknown>
   const execution = spec.execution as Record<string, unknown>
   const capabilities = spec.capabilities as Record<string, Record<string, unknown>>
-  if (profile.operation_mode !== 'shadow' || execution.mode !== 'shadow') {
-    throw new Error('phase 0 operation and execution modes must both be shadow')
+  if (profile.operation_mode !== 'live' || execution.mode !== 'guarded_atomic_profit') {
+    throw new Error('the Base canary must use guarded live atomic-profit execution')
   }
   for (const capability of ['sign', 'broadcast']) {
-    if (capabilities[capability]?.level !== 'UNSUPPORTED') {
-      throw new Error(`${capability} must remain UNSUPPORTED in phase 0`)
+    if (
+      !['IMPLEMENTED', 'TESTED', 'HISTORICAL_RECEIPT', 'VERIFIED_CURRENT'].includes(
+        String(capabilities[capability]?.level),
+      )
+    ) {
+      throw new Error(`${capability} must be independently implemented before live canary use`)
     }
   }
 

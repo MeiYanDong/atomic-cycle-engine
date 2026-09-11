@@ -1,10 +1,10 @@
 # 任意多池同链原子套利：Phase 0 技术规格
 
-状态：`APPROVED_FOR_PHASE_0_IMPLEMENTATION`
+状态：`APPROVED_FOR_BOUNDED_BASE_CANARY_IMPLEMENTATION`
 
-执行模式：`SHADOW_ONLY`
+执行模式：通用核心 `SHADOW`；Base V2/V3 切片 `BOUNDED_LIVE_CANARY`
 
-实盘授权：`false`
+实盘授权：`true`，仅限 ADR 0002 的地址、链、路线、资产 allowlist 和硬风险边界；当前是否激活以生产读回为准
 
 ## 1. 第一性原理
 
@@ -89,8 +89,8 @@ PAIR 只是 Robinhood Chain 上的一个候选发现/平台来源。NINECAT 的�
 2. `StateAdapter`：把池状态映射为带 `state_reference` 的本地快照；
 3. `QuoteAdapter`：对任意精确输入量返回 exact-output、Gas 估计、证据级别和完全相同的状态承诺；
 4. `RiskAdapter`：识别 Hook、转账税、暂停、黑名单、代理升级和非标准 ERC-20 语义；
-5. `CalldataAdapter`：未来才实现，必须把路线、金额、状态边界和链上利润下限绑定为一个不可变计划；
-6. `EffectAdapter`：未来才实现，用规范链回执和余额变化给出 `FLAT / OPEN / UNKNOWN / DISPUTED`。
+5. `CalldataAdapter`：把路线、金额、状态边界和链上利润下限绑定为一个不可变计划；目前只在 Base Uniswap V2/V3 金丝雀实现；
+6. `EffectAdapter`：用规范链回执和余额变化给出 `FLAT / OPEN / UNKNOWN / DISPUTED`；目前只在同一金丝雀实现。
 
 发现范围可以很宽，但任何没有 typed adapter、同状态 exact quote 和风险语义的协议都只能停留在观察层。
 
@@ -162,7 +162,7 @@ CHAINWIDE
 - 至少 100 个正毛差候选完成同状态全成本反事实；若不足，只能说明市场样本不足，不能推断可盈利；
 - quote-to-state 延迟分布、机会半衰期、公共 RPC 失败率和竞争结果都有可复算原始证据。
 
-### Phase 2 → 自有资金 Canary
+### Phase 2 → 通用自有资金 Canary
 
 - 至少 30 个相互独立、扣除全部已知成本后仍为正的反事实机会；
 - 路线级 `p25 opportunity_lifetime` 大于端到端 `p95 decision_to_submit`；
@@ -173,6 +173,33 @@ CHAINWIDE
 
 Canary 金额取“用户批准上限、影子样本安全容量 p10、可用余额”的最小值。实盘交易次数未来可以不设次数上限，但利润下限、Gas 日损失、UNKNOWN 隔离、余额和敞口熔断永不取消。
 
+ADR 0002 记录了一个明确例外：用户接受跳过完整通用 Phase 2 样本，先对 Base Uniswap V2/V3 的窄路线做 `0.01 ETH` 资金金丝雀。该例外不使其他协议、路线或更大本金自动晋级。
+
 ## 11. Phase 0 交付边界
 
-本阶段交付类型化核心、单元测试、CI、注册表核验 CLI、规格、ADR、故事卡和复用台账。明确不交付：进程常驻、生产部署、钱包接入、签名、广播、执行合约、收益面板或飞书通知。
+Phase 0 的历史交付为类型化核心、单元测试、CI、注册表核验 CLI、规格、ADR、故事卡和复用台账。之后新增的 Base 金丝雀不是通用执行器：它只允许 WETH 起止、规范 Uniswap V2/V3 工厂和明确资产 allowlist。
+
+## 12. Base V2/V3 实盘金丝雀
+
+### 12.1 路线与资产
+
+```text
+WETH → token（Uniswap V2）→ WETH（Uniswap V3）
+WETH → token（Uniswap V3）→ WETH（Uniswap V2）
+```
+
+首轮 token allowlist 为 USDC、USDbC、cbETH、DAI、cbBTC、AERO、DEGEN、TOSHI、VIRTUAL、AIXBT。允许列表只决定可承担本金的资产，不代表每个资产此刻都有池、深度或正利润。
+
+### 12.2 不可放大的风险边界
+
+- 单笔 `amountIn <= 0.003 WETH`；
+- Signer 交易后保留 `>= 0.005 ETH`；
+- 累计规范回执确认的失败 Gas 达 `0.001 ETH`，停止新增交易；
+- 每笔保守报价毛利必须覆盖最大 L2 Gas、放大后的 Base L1 data fee、operator fee 和 `0.000005 WETH` 最低净利润；
+- quote 利润按 80% 安全折扣，Gas limit 按 120%、L1 fee 按 150%、operator fee 按 120% 计算；
+- 机会最多有效 2 个 Base 区块且 deadline 20 秒；
+- 这些首轮本金/储备/累计失败 Gas 上限不能由环境变量放宽。
+
+### 12.3 结算真相
+
+签名前的 `eth_call` 只证明该状态下模拟成功。广播后必须核对：规范块哈希、receipt status、执行合约发出的路线事件、实际 WETH 增量、L2 Gas、receipt 的 Base `l1Fee`，以及回执块状态下 GasPriceOracle 的 operator fee。只有 `grossProfit - L2Gas - l1Fee - operatorFee >= minimumNetProfit` 才写入 `RECONCILED_SUCCESS`；缺失或矛盾进入 `DISPUTED` 并冻结该 nonce lane。
