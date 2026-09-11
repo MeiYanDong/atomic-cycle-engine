@@ -1,0 +1,507 @@
+{
+  "spec_version": "1.4",
+  "case_id": "atomic-cycle-engine-phase0",
+  "design_status": "approved_phase0_shadow",
+  "evidence_level": "repository_record",
+  "live_execution_authorized": false,
+  "objective": {
+    "statement": "Measure and maximize risk-adjusted net return for a same-chain 2-4 hop atomic cycle while preserving state identity, authorization, settlement truth, and a complete opportunity denominator.",
+    "risk_budget": {
+      "principal": {
+        "state": "UNKNOWN",
+        "reason": "Phase 0 is read-only and no live principal is authorized."
+      },
+      "gas": {
+        "state": "UNKNOWN",
+        "reason": "Phase 0 cannot broadcast and must not invent a live gas-loss budget."
+      },
+      "structural_bound": "No wallet, signer, raw transaction, broadcast, deployment, or residual position capability exists in Phase 0."
+    },
+    "success_semantics": {
+      "shadow_candidate": "Every hop and gas conversion share one state commitment and net profit remains above the proposed floor after all modeled costs.",
+      "live_success": "Not available in Phase 0; a future EffectRecord must prove canonical receipt success, positive attributable settlement-asset delta, and FLAT residual exposure.",
+      "unknown": "Any missing state, quote, coverage, receipt, balance, cost, or causal attribution remains UNKNOWN rather than inferred."
+    }
+  },
+  "opportunity": {
+    "kind": "same_chain_state_snapshot_atomic_cycle",
+    "definition": "A revisioned immutable state snapshot proving a 2-4 hop route from one settlement asset back to itself with positive modeled net profit; events and websites only wake evaluation.",
+    "identity_fields": [
+      "chain_id",
+      "settlement_asset",
+      "ordered_liquidity_source_ids",
+      "ordered_adapter_ids",
+      "amount_in",
+      "state_basis",
+      "state_reference",
+      "state_commitment"
+    ],
+    "dedupe_key": "chain_id:settlement_asset:route_id:amount_in:state_basis:state_reference:state_commitment",
+    "revision_policy": "A new block, flashblock sequence, pool state commitment, amount, route, or risk policy creates a new Opportunity and never mutates the prior action chain.",
+    "atomicity": "One same-chain transaction must begin and end in the same settlement asset and may not reuse one mutable liquidity source."
+  },
+  "timing": {
+    "clock": "chain block or pending sequence plus monotonic local timestamps",
+    "activation": {
+      "basis": "STATE",
+      "origin": "immutable opportunity snapshot",
+      "absolute_value": "all required pool states, gas conversion, route identity, and policy commitment are known",
+      "behavior": "Phase 0 may evaluate and record shadow results only; it cannot prepare a signable transaction or broadcast before or after activation."
+    },
+    "boundary": {
+      "termination_rule": "ANY",
+      "refresh_policy": "never_extend_same_opportunity",
+      "constraints": [
+        {
+          "id": "state_revision",
+          "basis": "STATE",
+          "origin": "frozen pool dependency set",
+          "absolute_value": "every hop and gas quote retains the exact same state commitment"
+        },
+        {
+          "id": "canonical_replacement",
+          "basis": "BLOCK",
+          "origin": "frozen canonical block",
+          "absolute_value": "the block remains canonical and has not been replaced"
+        },
+        {
+          "id": "pending_sequence_replacement",
+          "basis": "SEQUENCE",
+          "origin": "frozen flashblock sequence when pending state is used",
+          "absolute_value": "no later sequence supersedes the dependency commitment"
+        }
+      ]
+    },
+    "deadline_behavior": "Stop evaluating the old action chain, mark the reason, and create a new opportunity revision only from a newly frozen state; continue evidence reconciliation.",
+    "deadline_checkpoints": [
+      "before_route_evaluation",
+      "before_each_quote",
+      "before_gas_conversion",
+      "before_shadow_record"
+    ],
+    "timeline_fields": [
+      "source_occurred_at",
+      "received_at",
+      "normalized_at",
+      "snapshot_frozen_at",
+      "decided_at",
+      "signed_at",
+      "broadcast_started_at"
+    ]
+  },
+  "profile": {
+    "strategy": "generic_same_chain_atomic_cycle",
+    "operation_mode": "shadow",
+    "network_scope": ["base-mainnet", "robinhood-chain-mainnet"],
+    "route_scope": "2-4 hop typed and allowlisted AMM adapters",
+    "runtime_readback": "not_applicable_no_service"
+  },
+  "decision": {
+    "correctness_invariants": [
+      {
+        "id": "same_state_commitment",
+        "condition": "Every hop quote and gas conversion has the exact chain, state basis, reference, and commitment frozen by the Opportunity.",
+        "risk_reduced": "Prevents fictitious profit assembled from different market states.",
+        "false_block_cost": "One potentially valid candidate is omitted until a consistent snapshot exists.",
+        "latency_budget_ms": 0,
+        "latency_estimate": {
+          "state": "KNOWN",
+          "p95_ms": 0,
+          "basis": "Phase 0 performs an in-memory equality check."
+        },
+        "voi_estimate": {
+          "state": "KNOWN",
+          "expected_loss_reduction": "Eliminates mixed-state false positives from the eligible set.",
+          "basis": "Correctness invariant."
+        },
+        "blocking_mode": "block",
+        "isolation_scope": "opportunity",
+        "fallback": "record BLOCKED_CORRECTNESS and wait for a new state revision"
+      },
+      {
+        "id": "atomic_cycle_shape",
+        "condition": "The path is same-chain, contains 2-4 contiguous swaps, starts and ends in the declared settlement asset, and never reuses mutable liquidity.",
+        "risk_reduced": "Prevents hidden inventory, cross-chain finality risk, and double-counted pool liquidity.",
+        "false_block_cost": "Unsupported longer or non-atomic paths remain research-only.",
+        "latency_budget_ms": 0,
+        "latency_estimate": {
+          "state": "KNOWN",
+          "p95_ms": 0,
+          "basis": "Phase 0 validates route structure in memory."
+        },
+        "voi_estimate": {
+          "state": "KNOWN",
+          "expected_loss_reduction": "Keeps the modeled payoff inside one atomic settlement boundary.",
+          "basis": "Correctness invariant."
+        },
+        "blocking_mode": "block",
+        "isolation_scope": "opportunity",
+        "fallback": "reject the route"
+      },
+      {
+        "id": "orthogonal_source_attribution",
+        "condition": "Discovery source, launch platform, launch protocol, and liquidity venue are stored as independent evidence-backed claims.",
+        "risk_reduced": "Prevents a discovery API such as PAIR from being misreported as the platform or venue for unrelated assets such as NINECAT.",
+        "false_block_cost": "Unattributed pools remain UNKNOWN until chain evidence is available.",
+        "latency_budget_ms": 0,
+        "latency_estimate": {
+          "state": "KNOWN",
+          "p95_ms": 0,
+          "basis": "Phase 0 validates the normalized object locally."
+        },
+        "voi_estimate": {
+          "state": "KNOWN",
+          "expected_loss_reduction": "Prevents wrong protocol adapters and product labels.",
+          "basis": "Observed historical attribution defect."
+        },
+        "blocking_mode": "block",
+        "isolation_scope": "capability",
+        "fallback": "keep the affected source discovery-only"
+      },
+      {
+        "id": "phase0_write_block",
+        "condition": "live_execution_authorized is false and sign, broadcast, and calldata capabilities remain UNSUPPORTED.",
+        "risk_reduced": "Prevents the research foundation from moving funds.",
+        "false_block_cost": "No Phase 0 transaction can be attempted.",
+        "latency_budget_ms": 0,
+        "latency_estimate": {
+          "state": "KNOWN",
+          "p95_ms": 0,
+          "basis": "Static capability and runtime RPC allowlist checks."
+        },
+        "voi_estimate": {
+          "state": "KNOWN",
+          "expected_loss_reduction": "Eliminates Phase 0 principal and gas loss from transaction submission.",
+          "basis": "Authorization invariant."
+        },
+        "blocking_mode": "block",
+        "isolation_scope": "global",
+        "fallback": "remain shadow-only"
+      }
+    ],
+    "adaptive_gates": [
+      {
+        "id": "all_costs_known",
+        "condition": "Pool fees, protocol costs, gas conversion, financing fees when applicable, and risk buffer are known at the same state.",
+        "risk_reduced": "Prevents gross spread from being mislabeled as net profit.",
+        "false_block_cost": "A real opportunity may remain unranked while a cost adapter is unavailable.",
+        "latency_budget_ms": 0,
+        "latency_estimate": {
+          "state": "UNKNOWN",
+          "reason": "Live protocol adapters and latency distributions are not implemented."
+        },
+        "voi_estimate": {
+          "state": "UNKNOWN",
+          "reason": "Avoided false-positive and missed-edge distributions require Phase 1 evidence."
+        },
+        "blocking_mode": "degrade",
+        "isolation_scope": "capability",
+        "fallback": "record the candidate as research-only and exclude it from eligible shadow profit"
+      },
+      {
+        "id": "coverage_complete",
+        "condition": "The chainwide census watermark is gap-free through the required confirmed block or pending sequence.",
+        "risk_reduced": "Prevents opportunity-frequency claims from an unknown denominator.",
+        "false_block_cost": "Business-rate conclusions wait for backfill while individual candidates may still be evaluated.",
+        "latency_budget_ms": 0,
+        "latency_estimate": {
+          "state": "UNKNOWN",
+          "reason": "Backfill and reorg performance are Phase 1 measurements."
+        },
+        "voi_estimate": {
+          "state": "KNOWN",
+          "expected_loss_reduction": "Stops incomplete scans from justifying infrastructure or capital expansion.",
+          "basis": "Denominator integrity."
+        },
+        "blocking_mode": "degrade",
+        "isolation_scope": "capability",
+        "fallback": "publish coverage as partial and suppress opportunity-rate conclusions"
+      }
+    ],
+    "soft_checks": [
+      {
+        "id": "external_candidate_corrobation",
+        "condition": "Third-party indexers or platform APIs corroborate a chain-derived pool without delaying local evaluation.",
+        "risk_reduced": "Improves metadata and operator discovery context.",
+        "false_block_cost": "None because corroboration is not an execution gate.",
+        "latency_budget_ms": 0,
+        "latency_estimate": {
+          "state": "UNKNOWN",
+          "reason": "External API latency is not measured."
+        },
+        "voi_estimate": {
+          "state": "UNKNOWN",
+          "reason": "No causal execution value has been established."
+        },
+        "blocking_mode": "async",
+        "isolation_scope": "capability",
+        "fallback": "continue with chain evidence only"
+      }
+    ]
+  },
+  "execution": {
+    "mode": "shadow",
+    "profile": "read_only_atomic_cycle_research",
+    "min_out": {
+      "mode": "atomic_profit_floor",
+      "formula": "future amountOutMinimum = amountIn + approvedMinimumNetProfit",
+      "live_effect": false
+    },
+    "authorization": {
+      "mode": "MANUAL_ARM",
+      "scope_binding": "A future approval must bind chain, signer, settlement asset, typed route set, principal, gas-loss budget, profit floor, expiry, and immutable plan hash.",
+      "expiry_policy": "The earliest of manual arm expiry and the composite opportunity boundary.",
+      "evidence_record": "Append-only AuthorizationRecord in a future separately reviewed execution module.",
+      "live_effect": false
+    },
+    "signing_policy": "UNSUPPORTED in Phase 0.",
+    "broadcast_policy": "UNSUPPORTED in Phase 0.",
+    "rpc_policy": "Only explicitly allowlisted read methods are available."
+  },
+  "recovery": {
+    "phase0": "No transaction can exist; malformed state or RPC failures produce BLOCKED_CORRECTNESS, BLOCKED_RESOURCE, or UNKNOWN evidence.",
+    "future_receipt_timeout": "UNKNOWN until multi-source canonical reconciliation converges.",
+    "single_rpc_null_policy": "never terminal",
+    "restart_policy": "Resume from append-only evidence and coverage watermarks; never assume skipped blocks are empty."
+  },
+  "exit": {
+    "phase0": "No positions can be created.",
+    "future_atomic_success": "FLAT in the settlement asset; no ExitPlan.",
+    "future_residual": "Any nonzero or unknown residual creates an OPEN or UNKNOWN Position and blocks that wallet lane.",
+    "live_residual_recovery_authorized": false
+  },
+  "evidence": {
+    "levels": [
+      "configured",
+      "repository_record",
+      "live_observed",
+      "receipt_attested",
+      "economic_reconciled"
+    ],
+    "append_only_events": [
+      "pool_fact_observed",
+      "coverage_updated",
+      "opportunity_observed",
+      "quote_recorded",
+      "shadow_decision_recorded",
+      "counterfactual_outcome_recorded",
+      "reconciliation_corrected"
+    ],
+    "current_runtime_verified": false,
+    "services_or_transactions_run_this_case": false,
+    "effect_record_required_for_live_claim": true,
+    "secret_material_permitted": false
+  },
+  "capabilities": {
+    "transport": {
+      "level": "TESTED",
+      "access": "READ",
+      "limitations": [
+        "HTTP read allowlist and registry smoke CLI only; no production redundancy or WebSocket adapter."
+      ]
+    },
+    "discovery": {
+      "level": "PLANNED",
+      "access": "READ",
+      "limitations": [
+        "Contract registries exist, but gap-free factory and PoolManager backfills are not implemented."
+      ]
+    },
+    "identity": {
+      "level": "TESTED",
+      "access": "READ",
+      "limitations": [
+        "Source dimensions and registry invariants have unit tests; full live pool attribution is not implemented."
+      ]
+    },
+    "quote": {
+      "level": "TESTED",
+      "access": "READ",
+      "limitations": [
+        "Cycle evaluation and v2 math use fixtures; no live v2/v3/v4/Aerodrome quote adapter exists."
+      ]
+    },
+    "simulation": {
+      "level": "PLANNED",
+      "access": "READ",
+      "limitations": ["No fork, trace, Hook, or token-semantics simulation adapter exists."]
+    },
+    "calldata": {
+      "level": "UNSUPPORTED",
+      "access": "PREPARE",
+      "limitations": ["Phase 0 cannot produce signable transaction payloads."]
+    },
+    "sign": {
+      "level": "UNSUPPORTED",
+      "access": "WRITE",
+      "limitations": ["No wallet, private key, account request, or signer dependency is present."]
+    },
+    "broadcast": {
+      "level": "UNSUPPORTED",
+      "access": "WRITE",
+      "limitations": [
+        "eth_sendRawTransaction and all non-read RPC methods are rejected before transport."
+      ]
+    },
+    "reconcile": {
+      "level": "PLANNED",
+      "access": "RECOVER",
+      "limitations": [
+        "Coverage watermark exists; receipt, nonce, balance, and EffectRecord reconciliation do not."
+      ]
+    },
+    "exit": {
+      "level": "UNSUPPORTED",
+      "access": "RECOVER",
+      "limitations": ["Phase 0 cannot create a position, so no live exit capability is authorized."]
+    },
+    "replay": {
+      "level": "TESTED",
+      "access": "READ",
+      "limitations": [
+        "Deterministic synthetic graph and quote fixtures only; historical chain replay is planned."
+      ]
+    }
+  },
+  "race_thesis": {
+    "reward_source": "Transient disagreement between executable AMM paths; the first state-changing capture is economically funded by the pre-existing pool imbalance after LP fees, protocol costs, gas, and financing.",
+    "allocation": "EXCLUSIVE_STATE_CLAIM",
+    "sequencing_rule": {
+      "type": "UNKNOWN",
+      "evidence_state": "UNKNOWN",
+      "reason": "Phase 0 has not measured sequencer ordering, competitor submission paths, or same-opportunity winners on Base and Robinhood Chain. Phase 1 will discriminate with canonical block position and causal state changes."
+    },
+    "earliest_public_signal": "A canonical or pending pool-state change, liquidity change, or new pool event observable from a chain endpoint.",
+    "earliest_inferable_signal": "A locally maintained dependency graph predicts that one changed pool may create a cycle before full-graph scanning.",
+    "earliest_safe_action": "A typed route has exact same-state quotes, complete cost conversion, an immutable identity, and an atomic on-chain profit floor; Phase 0 still records only shadow evidence.",
+    "controllable_edges": [
+      "INFORMATION",
+      "DECISION",
+      "PREPARATION",
+      "TRANSPORT",
+      "FEE",
+      "ECONOMIC"
+    ],
+    "invalidating_evidence": [
+      "Canonical same-state replay shows no positive net cycle after all costs.",
+      "A competitor consistently captures the exact opportunity before the proposed path can safely submit.",
+      "Observed Hook or token semantics break atomic settlement or exact quote assumptions.",
+      "Opportunity capacity is below the minimum size required to pay gas."
+    ]
+  },
+  "signal_strategy": {
+    "ladder": [
+      {
+        "id": "canonical_state_change",
+        "tier": "STATE",
+        "source": "Factory, PoolManager, pool, and canonical block events with a local dependency graph.",
+        "causal_claim": "A changed dependency can alter one or more atomic cycle outputs; the event itself does not prove profit.",
+        "known_fields": ["chain_id", "block_or_sequence", "pool_identity", "state_commitment"],
+        "late_binding_fields": ["exact_amount", "gas_cost", "risk_buffer"]
+      },
+      {
+        "id": "base_flashblock_state",
+        "tier": "STATE",
+        "source": "Base Flashblocks pending state and pending logs.",
+        "causal_claim": "A newer sequencer state can reveal a transient cycle earlier than a finalized block, subject to sequence replacement and coverage proof.",
+        "known_fields": ["chain_id", "flashblock_sequence", "changed_dependencies"],
+        "late_binding_fields": ["canonical_inclusion", "exact_amount", "gas_cost"]
+      },
+      {
+        "id": "external_candidate_hint",
+        "tier": "RESULT",
+        "source": "PAIR, Long, DexScreener, GeckoTerminal, or an aggregator response.",
+        "causal_claim": "The source can prioritize a cold-path lookup but cannot establish platform identity, completeness, or executable profit.",
+        "known_fields": ["source_identity", "candidate_asset_or_pool"],
+        "late_binding_fields": ["chain_provenance", "venue", "state", "route", "net_profit"]
+      }
+    ],
+    "chosen_primary": "canonical_state_change",
+    "fallbacks": ["base_flashblock_state", "external_candidate_hint"],
+    "late_binding_fields": ["amount_in", "gas_conversion", "risk_policy", "competition_state"],
+    "false_positive_policy": "A signal only creates an Opportunity candidate; mixed state, missing costs, unsafe semantics, or non-positive net value fail closed without a shot.",
+    "false_negative_audit": "Compare the gap-free chainwide census with observed candidates and later canonical profitable state changes; classify NOT_OBSERVED separately."
+  },
+  "competition": {
+    "type": "EXCLUSIVE_STATE_CLAIM",
+    "competitor_model": "UNKNOWN-v0: competitors may use private endpoints, colocated infrastructure, custom simulators, priority fees, or pre-positioned inventory; no global win-rate assumption is allowed.",
+    "win_probability_dimensions": [
+      "chain",
+      "venue_set",
+      "hop_count",
+      "signal_tier",
+      "opportunity_lifetime_bucket",
+      "net_profit_bucket",
+      "submission_path",
+      "fee_policy"
+    ],
+    "ordering_evidence": [
+      "UNKNOWN record plus future canonical block and transaction positions for the exact opportunity identity."
+    ],
+    "sample_policy": {
+      "minimum_total": 30,
+      "insufficient_behavior": "Report exact counts and an interval; do not claim a stable win probability or authorize profit-mode execution."
+    }
+  },
+  "shot_policy": {
+    "profiles": [
+      {
+        "id": "phase0_no_shot",
+        "profile": "NO_SHOT",
+        "race_mode": "SHADOW",
+        "reason": "Discovery, live quotes, ordering evidence, signer, broadcast, reconcile, and execution contracts are not complete."
+      }
+    ],
+    "race_experiment": {
+      "enabled": false,
+      "reason": "No live transaction is required to validate Phase 0 correctness."
+    }
+  },
+  "race_timeline": {
+    "required_boundaries": [
+      "source_occurred_at",
+      "received_at",
+      "state_frozen_at",
+      "quote_completed_at",
+      "decision_completed_at",
+      "competitor_state_change_at"
+    ],
+    "wire_measurement_level": "UNKNOWN",
+    "inclusion_position_required": true
+  },
+  "opportunity_census": {
+    "source": "Gap-free canonical Factory, PoolManager, and pool-state history, with Base pending sequences maintained as a separate non-final view.",
+    "completeness_watermark": "Per source: required_from, observed_through, canonical_head, confirmation_depth, explicit gaps, reorg corrections, and latest pending sequence.",
+    "counterfactual_policy": "Replay each chainwide candidate with the adapter and policy version valid at that state; never use a later price or gas value without labeling the counterfactual.",
+    "required_outcomes": [
+      "NOT_OBSERVED",
+      "OBSERVED_AFTER_EXPIRY",
+      "OBSERVED",
+      "NO_SHOT_NEGATIVE_EV",
+      "NO_SHOT_POLICY",
+      "BLOCKED_CORRECTNESS",
+      "BLOCKED_RESOURCE",
+      "ATTEMPTED",
+      "WON",
+      "CONFIRMED_LOST_RACE",
+      "LOW_VALUE_GUARD_EXIT",
+      "INVALID_OPPORTUNITY_EXIT",
+      "SHARED_CAPTURE",
+      "UNKNOWN"
+    ]
+  },
+  "learning": {
+    "race_denominator": ["WON", "CONFIRMED_LOST_RACE"],
+    "excluded_from_race": [
+      "NOT_OBSERVED",
+      "NO_SHOT_NEGATIVE_EV",
+      "NO_SHOT_POLICY",
+      "BLOCKED_CORRECTNESS",
+      "BLOCKED_RESOURCE",
+      "LOW_VALUE_GUARD_EXIT",
+      "INVALID_OPPORTUNITY_EXIT",
+      "UNKNOWN"
+    ],
+    "model_versioning": "Append-only adapter, cost, policy, competitor, and opportunity-identity versions; corrections supersede but never delete prior evidence."
+  }
+}

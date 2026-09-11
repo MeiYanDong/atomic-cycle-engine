@@ -1,0 +1,48 @@
+{
+  "name": "atomic-cycle-engine",
+  "version": "0.1.0",
+  "description": "Read-only, evidence-first engine for discovering and evaluating same-chain atomic arbitrage cycles",
+  "license": "MIT",
+  "private": false,
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist/src",
+    "docs",
+    "spec"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "build": "tsc",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "spec:check": "tsx scripts/validate-local-spec.ts",
+    "test": "tsx --test test/*.test.ts",
+    "registry:verify": "tsx src/cli/verify-registry.ts",
+    "secret:scan": "tsx scripts/secret-scan.ts",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run spec:check && npm test && npm run secret:scan"
+  },
+  "dependencies": {
+    "viem": "2.56.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.20.1",
+    "eslint": "10.9.1",
+    "prettier": "3.9.6",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.57.1"
+  }
+}
