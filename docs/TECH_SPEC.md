@@ -98,7 +98,7 @@ PAIR 只是 Robinhood Chain 上的一个候选发现/平台来源。NINECAT 的�
 
 ### Base
 
-优先级 P0：Uniswap v2/v3/v4、Aerodrome Standard/Slipstream。它们覆盖不同 AMM 曲线并拥有官方合约注册信息。Base 官方 Flashblocks 可提供约 200ms 的 pending-state 更新，但在完成 gap/reorg/sequence 语义验证前只作为影子信号。
+优先级 P0：Uniswap v2/v3/v4、Aerodrome Standard/Slipstream。它们覆盖不同 AMM 曲线并拥有官方合约注册信息。Aerodrome 的 CLFactory 不能写死一个地址，必须从其 FactoryRegistry 动态校验当前批准集合。Base 官方 Flashblocks 可提供约 200ms 的 pending-state 更新，但在完成 gap/reorg/sequence 语义验证前只作为影子信号。
 
 优先级 P1：PancakeSwap v3。先验证 Base 专属外围合约和事件语义，再晋级 typed quote。
 

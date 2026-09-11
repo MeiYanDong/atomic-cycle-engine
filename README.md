@@ -4,12 +4,14 @@
 
 它不以 PAIR、股票代币或某个 Meme 平台为边界。机会被统一定义为：在同一条链、同一个可证明状态上，一条 2–4 跳闭环路径在扣除池费、协议费、Gas、融资费和风险缓冲后，仍能回到原始结算资产并产生正净收益。
 
-当前版本是 **Phase 0 / shadow-only**：
+当前版本是 **Phase 0 complete / Phase 1A bounded discovery / shadow-only**：
 
 - 支持通用 2–4 跳简单环枚举；
 - 支持同一状态承诺下的逐跳精确报价与金额优选；
 - 支持机会全集、遗漏、拦截、尝试、胜负和未知状态的分母安全统计；
 - 提供 Base 与 Robinhood Chain 的只读合约注册表核验；
+- 支持 Uniswap v2/v3/v4、Aerodrome Standard/Slipstream 与 PancakeSwap v3 的类型化工厂事件解码；
+- 支持小窗口、按来源隔离的池发现扫描，任何 RPC 或解码失败都显式记为 `GAPPED`；
 - 不包含钱包、私钥、签名、广播、合约部署或生产交易权限。
 
 ## 快速开始
@@ -19,9 +21,11 @@ npm ci
 npm run check
 npm run registry:verify -- --network base
 npm run registry:verify -- --network robinhood
+npm run census:window -- --network base --blocks 250 --chunk-size 250
+npm run census:window -- --network robinhood --blocks 250 --chunk-size 250
 ```
 
-官方公共 RPC 只用于低频注册表核验和冷读，不代表生产 SLA。Base 的 Flashblocks 端点已登记，但 pending-state 适配器尚未实现。
+官方公共 RPC 只用于低频注册表核验和冷读，不代表生产 SLA。窗口扫描只证明指定区块范围内的发现覆盖，不证明全历史完整、存在套利机会或能够成交。Base 的 Flashblocks 端点已登记，但 pending-state 适配器尚未实现。
 
 ## 关键文档
 
@@ -31,6 +35,7 @@ npm run registry:verify -- --network robinhood
 - [复用台账](docs/REUSE_LEDGER.md)
 - [Shadow-first ADR](docs/decisions/0001-shadow-first-dual-chain.md)
 - [Sniper Engineering 规格](spec/sniper-spec.json)
+- [Phase 1A 真实读回](docs/evidence/2026-09-11-phase1a-bounded-census.md)
 
 ## 证据语言
 

@@ -64,6 +64,8 @@ const UNISWAP_V3_BASE_SOURCE =
   'https://developers.uniswap.org/docs/protocols/v3/deployments/v3-base-deployments'
 const UNISWAP_V4_SOURCE = 'https://developers.uniswap.org/docs/protocols/v4/deployments'
 const AERODROME_SOURCE = 'https://aerodrome.finance/security'
+const AERODROME_REGISTRY_SOURCE =
+  'https://github.com/aerodrome-finance/contracts/blob/main/contracts/FactoryRegistry.sol'
 const PANCAKE_V3_SOURCE = 'https://developer.pancakeswap.finance/contracts/v3/addresses'
 const RH_REPOSITORY_SOURCE = 'https://github.com/MeiYanDong/manga-chan-atomic-arbitrage/tree/main'
 
@@ -165,6 +167,18 @@ export const CONTRACTS: readonly ContractDefinition[] = [
     evidenceUrl: UNISWAP_V4_SOURCE,
   },
   {
+    id: 'base.aerodrome.factory-registry',
+    network: 'base',
+    protocolId: 'AERODROME',
+    venueId: null,
+    platformId: null,
+    role: 'FACTORY_REGISTRY',
+    address: address('0x5C3F18F06CC09CA1910767A34a20F771039E37C0'),
+    support: 'PLANNED_ADAPTER',
+    evidenceLevel: 'configured',
+    evidenceUrl: AERODROME_REGISTRY_SOURCE,
+  },
+  {
     id: 'base.aerodrome.pool-factory',
     network: 'base',
     protocolId: 'AERODROME',
@@ -199,6 +213,30 @@ export const CONTRACTS: readonly ContractDefinition[] = [
     support: 'PLANNED_ADAPTER',
     evidenceLevel: 'configured',
     evidenceUrl: AERODROME_SOURCE,
+  },
+  {
+    id: 'base.aerodrome-slipstream.pool-factory-v2',
+    network: 'base',
+    protocolId: 'AERODROME_SLIPSTREAM',
+    venueId: 'AERODROME_SLIPSTREAM',
+    platformId: null,
+    role: 'POOL_FACTORY',
+    address: address('0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a'),
+    support: 'PLANNED_ADAPTER',
+    evidenceLevel: 'live_observed',
+    evidenceUrl: AERODROME_REGISTRY_SOURCE,
+  },
+  {
+    id: 'base.aerodrome-slipstream.pool-factory-v3',
+    network: 'base',
+    protocolId: 'AERODROME_SLIPSTREAM',
+    venueId: 'AERODROME_SLIPSTREAM',
+    platformId: null,
+    role: 'POOL_FACTORY',
+    address: address('0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef'),
+    support: 'PLANNED_ADAPTER',
+    evidenceLevel: 'live_observed',
+    evidenceUrl: AERODROME_REGISTRY_SOURCE,
   },
   {
     id: 'base.aerodrome-slipstream.quoter',

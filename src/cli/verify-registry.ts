@@ -1,12 +1,15 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import type { Address, Hex } from 'viem'
 
 import {
   assertRegistry,
+  CONTRACTS,
   contractsForNetwork,
   NETWORKS,
   type NetworkId,
 } from '../config/registry.js'
+import { readAerodromePoolFactories } from '../discovery/aerodrome-registry.js'
 import { sanitizeEvidence } from '../evidence/jsonl-store.js'
 import { ReadOnlyRpcClient } from '../rpc/read-only-client.js'
 
@@ -15,6 +18,15 @@ interface VerificationResult {
   readonly address: string
   readonly status: 'CODE_PRESENT' | 'NO_CODE' | 'UNKNOWN'
   readonly codeBytes: number | null
+  readonly error?: string
+}
+
+interface AerodromeRegistryResult {
+  readonly status: 'MATCHED' | 'MISMATCH' | 'UNKNOWN'
+  readonly registryAddress: Address
+  readonly approvedFactories: readonly Address[]
+  readonly unregisteredFactories: readonly Address[]
+  readonly staleConfiguredFactories: readonly Address[]
   readonly error?: string
 }
 
@@ -40,6 +52,58 @@ function hexToBigInt(value: string): bigint {
   return BigInt(value)
 }
 
+function blockHex(value: bigint): Hex {
+  return `0x${value.toString(16)}`
+}
+
+async function verifyAerodromeRegistry(
+  client: ReadOnlyRpcClient,
+  blockNumber: bigint,
+): Promise<AerodromeRegistryResult> {
+  const registry = CONTRACTS.find((contract) => contract.id === 'base.aerodrome.factory-registry')
+  if (registry === undefined) throw new Error('missing Aerodrome FactoryRegistry definition')
+  try {
+    const approvedFactories = await readAerodromePoolFactories(
+      client,
+      registry.address,
+      blockHex(blockNumber),
+    )
+    const configuredFactories = CONTRACTS.filter(
+      (contract) =>
+        contract.network === 'base' &&
+        contract.protocolId.startsWith('AERODROME') &&
+        contract.role === 'POOL_FACTORY',
+    ).map((contract) => contract.address)
+    const approvedSet = new Set(approvedFactories.map((factory) => factory.toLowerCase()))
+    const configuredSet = new Set(configuredFactories.map((factory) => factory.toLowerCase()))
+    const unregisteredFactories = approvedFactories.filter(
+      (factory) => !configuredSet.has(factory.toLowerCase()),
+    )
+    const staleConfiguredFactories = configuredFactories.filter(
+      (factory) => !approvedSet.has(factory.toLowerCase()),
+    )
+    return {
+      status:
+        unregisteredFactories.length === 0 && staleConfiguredFactories.length === 0
+          ? 'MATCHED'
+          : 'MISMATCH',
+      registryAddress: registry.address,
+      approvedFactories,
+      unregisteredFactories,
+      staleConfiguredFactories,
+    }
+  } catch (error) {
+    return {
+      status: 'UNKNOWN',
+      registryAddress: registry.address,
+      approvedFactories: [],
+      unregisteredFactories: [],
+      staleConfiguredFactories: [],
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
 async function main(): Promise<void> {
   assertRegistry()
   const networkId = parseNetwork(process.argv.slice(2))
@@ -52,7 +116,10 @@ async function main(): Promise<void> {
 
   for (const contract of contractsForNetwork(networkId)) {
     try {
-      const code = await client.request<string>('eth_getCode', [contract.address, 'latest'])
+      const code = await client.request<string>('eth_getCode', [
+        contract.address,
+        blockHex(blockNumber),
+      ])
       const codeBytes = code === '0x' ? 0 : (code.length - 2) / 2
       results.push({
         contractId: contract.id,
@@ -71,6 +138,8 @@ async function main(): Promise<void> {
     }
   }
 
+  const aerodromeRegistry =
+    networkId === 'base' ? await verifyAerodromeRegistry(client, blockNumber) : undefined
   const report = sanitizeEvidence({
     schemaVersion: 1,
     kind: 'registry_verification',
@@ -81,8 +150,9 @@ async function main(): Promise<void> {
     observedChainId: chainId,
     blockNumber,
     endpoint: client.endpointLabel,
-    boundedRequestCount: results.length + 2,
+    boundedRequestCount: results.length + 2 + (networkId === 'base' ? 1 : 0),
     contracts: results,
+    aerodromeRegistry,
   })
   const rendered = `${JSON.stringify(report, null, 2)}\n`
   const target = outputPath(process.argv.slice(2))
@@ -94,7 +164,9 @@ async function main(): Promise<void> {
 
   if (
     chainId !== BigInt(network.chainId) ||
-    results.some((item) => item.status !== 'CODE_PRESENT')
+    results.some((item) => item.status !== 'CODE_PRESENT') ||
+    aerodromeRegistry?.status === 'MISMATCH' ||
+    aerodromeRegistry?.status === 'UNKNOWN'
   ) {
     process.exitCode = 1
   }

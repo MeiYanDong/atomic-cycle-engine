@@ -59,6 +59,7 @@ void test('evidence writer redacts secrets, serializes bigint, and uses owner-on
 void test('sanitizer preserves ordinary public evidence links', () => {
   const sanitized = sanitizeEvidence({
     documentation: 'https://docs.base.org/base-chain/api-reference/rpc-overview',
+    optionalProtocolResult: undefined,
   })
   assert.deepEqual(sanitized, {
     documentation: 'https://docs.base.org/base-chain/api-reference/rpc-overview',

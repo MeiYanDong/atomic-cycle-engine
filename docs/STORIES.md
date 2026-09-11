@@ -54,7 +54,27 @@
 - UNKNOWN 不得附带猜测 ID；
 - NINECAT fixture 表达为 `LONG_ROUTE / DOPPLER / UNISWAP_V4`，不是 PAIR。
 
-## 下一阶段：Phase 1 在线普查
+## 已实现：Phase 1A 有界在线发现
+
+### S1A-01 类型化工厂事件
+
+验收：
+
+- Uniswap v2/v3/v4、Aerodrome Standard/Slipstream 与 PancakeSwap v3 分别使用明确事件 ABI；
+- 每条 `PoolFact` 保留链、来源、协议、venue、块高、块哈希、交易哈希和日志索引；
+- v4 保留 bytes32 pool identity，不虚构池合约地址；
+- Aerodrome 从 FactoryRegistry 读取并核对当前全部批准工厂。
+
+### S1A-02 有界窗口与缺口语义
+
+验收：
+
+- 每个来源独立请求和统计；
+- RPC 或解码失败记录精确区块范围并标记 `GAPPED`；
+- Base 与 Robinhood Chain 各完成一次 250 区块真实读回；
+- 结果明确不外推为全历史覆盖、机会频率或可执行利润。
+
+## 下一阶段：Phase 1B 在线普查
 
 ### S1-01 Base P0 协议池普查
 

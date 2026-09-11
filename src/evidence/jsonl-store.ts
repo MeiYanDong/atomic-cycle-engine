@@ -31,10 +31,9 @@ export function sanitizeEvidence(value: unknown, key = ''): JsonValue {
   if (Array.isArray(value)) return value.map((item) => sanitizeEvidence(item))
   if (typeof value === 'object') {
     return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([childKey, childValue]) => [
-        childKey,
-        sanitizeEvidence(childValue, childKey),
-      ]),
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, childValue]) => childValue !== undefined)
+        .map(([childKey, childValue]) => [childKey, sanitizeEvidence(childValue, childKey)]),
     )
   }
   return `[${typeof value}]`

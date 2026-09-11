@@ -4,16 +4,16 @@
 
 ## 链上执行候选
 
-| 链        | 协议/场所            | Discovery          | State                         | Exact quote                         | Calldata | 当前状态                     | 优先级 |
-| --------- | -------------------- | ------------------ | ----------------------------- | ----------------------------------- | -------- | ---------------------------- | ------ |
-| Base      | Uniswap v2           | Factory events     | reserves                      | x*y=k 本地数学                      | 无       | 数学核已实现，链适配 planned | P0     |
-| Base      | Uniswap v3           | Factory events     | slot0/ticks/liquidity         | QuoterV2 + 本地状态                 | 无       | registry-only / planned      | P0     |
-| Base      | Uniswap v4           | PoolManager events | StateView + Hook identity     | Quoter + Hook policy                | 无       | registry-only / planned      | P0     |
-| Base      | Aerodrome Standard   | PoolFactory events | reserves/stable flag          | typed pool quote                    | 无       | registry-only / planned      | P0     |
-| Base      | Aerodrome Slipstream | Factory events     | concentrated state            | official Quoter                     | 无       | registry-only / planned      | P0     |
-| Base      | PancakeSwap v3       | Factory events     | slot0/ticks/liquidity         | Base-specific Quoter                | 无       | factory registry-only        | P1     |
-| Robinhood | Uniswap v3           | Factory events     | slot0/ticks/liquidity         | existing quoter mechanism migration | 无       | repository record / planned  | P0     |
-| Robinhood | Uniswap v4           | PoolManager events | manager state + Hook identity | existing quote mechanism migration  | 无       | repository record / planned  | P0     |
+| 链        | 协议/场所            | Discovery                                          | State                         | Exact quote                         | Calldata | 当前状态                                      | 优先级 |
+| --------- | -------------------- | -------------------------------------------------- | ----------------------------- | ----------------------------------- | -------- | --------------------------------------------- | ------ |
+| Base      | Uniswap v2           | Factory events                                     | reserves                      | x*y=k 本地数学                      | 无       | bounded discovery + 数学核 implemented        | P0     |
+| Base      | Uniswap v3           | Factory events                                     | slot0/ticks/liquidity         | QuoterV2 + 本地状态                 | 无       | bounded discovery implemented / state planned | P0     |
+| Base      | Uniswap v4           | PoolManager events                                 | StateView + Hook identity     | Quoter + Hook policy                | 无       | bounded discovery implemented / state planned | P0     |
+| Base      | Aerodrome Standard   | PoolFactory events                                 | reserves/stable flag          | typed pool quote                    | 无       | bounded discovery implemented / state planned | P0     |
+| Base      | Aerodrome Slipstream | 动态 FactoryRegistry + 全部已批准 CLFactory events | concentrated state            | official Quoter                     | 无       | registry + bounded discovery implemented      | P0     |
+| Base      | PancakeSwap v3       | Factory events                                     | slot0/ticks/liquidity         | Base-specific Quoter                | 无       | bounded discovery implemented / state planned | P1     |
+| Robinhood | Uniswap v3           | Factory events                                     | slot0/ticks/liquidity         | existing quoter mechanism migration | 无       | bounded discovery implemented / state planned | P0     |
+| Robinhood | Uniswap v4           | PoolManager events                                 | manager state + Hook identity | existing quote mechanism migration  | 无       | bounded discovery implemented / state planned | P0     |
 
 ## 候选发现来源
 
@@ -29,3 +29,5 @@
 ## 适配器晋级规则
 
 每个协议按 `registry-only → discovery → state → quote → risk → calldata → effect` 顺序晋级。任一级无法证明语义时，只隔离该协议/Hook，不停止其他已验证能力。任何网页或聚合器返回的新池不会自动获得执行权限。
+
+`bounded discovery implemented` 仅表示类型化解码和指定区块窗口的 gap-aware 扫描已实现。它不等于断点持久化、全历史 gap-free 回填、重组撤销或实时状态/报价。

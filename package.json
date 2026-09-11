@@ -29,6 +29,7 @@
     "typecheck": "tsc --noEmit",
     "spec:check": "tsx scripts/validate-local-spec.ts",
     "test": "tsx --test test/*.test.ts",
+    "census:window": "tsx src/cli/census-window.ts",
     "registry:verify": "tsx src/cli/verify-registry.ts",
     "secret:scan": "tsx scripts/secret-scan.ts",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run spec:check && npm test && npm run secret:scan"
