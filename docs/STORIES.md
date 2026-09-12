@@ -145,7 +145,7 @@
 
 ### S3-02 单钱包单 nonce owner
 
-验收：持久 fencing、唯一 nonce owner、计划先落盘、同 raw fanout、规范链 receipt/event/WETH/L1 fee reconcile；单 RPC null 不得被记为收益或安全失败。
+验收：持久 fencing 绑定 boot ID、PID 与进程启动标识，重启后 PID 被其他进程复用时不会误认旧 owner；锁释放必须核对 owner token；唯一 nonce owner、计划先落盘、同 raw fanout、规范链 receipt/event/WETH/L1 fee reconcile；单 RPC null 不得被记为收益或安全失败。
 
 ### S3-03 生产安全与发布
 

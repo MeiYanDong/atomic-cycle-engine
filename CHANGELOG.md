@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bind the Base live nonce-owner fence to the Linux boot ID and process start ticks, retain a guarded legacy migration,
+  and verify the owner token before release so a reboot-time PID reuse cannot strand or steal the nonce lane.
 - Add one bounded retry for thrown read-only transport failures in the Robinhood/BNB shadow while never retrying a
   JSON-RPC contract error. Publish actual provider attempts, transient failures, recovered reads and unresolved quote
   failures separately so public-RPC reliability remains measurable.
