@@ -1,4 +1,5 @@
-import { mkdir, open, readFile, rm } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { mkdir, open, readFile, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 
@@ -124,6 +125,138 @@ function processExists(pid: number): boolean {
   }
 }
 
+interface LiveFenceRecord {
+  readonly schemaVersion?: number
+  readonly pid: number
+  readonly createdAt: string
+  readonly ownerToken?: string
+  readonly bootId?: string
+  readonly processStartTicks?: string
+}
+
+export interface LiveFenceProcessObservation {
+  readonly exists: boolean
+  readonly bootId: string | null
+  readonly processStartTicks: string | null
+  readonly bootedAtMs: number | null
+}
+
+const LEGACY_FENCE_BOOT_SKEW_MS = 60_000
+
+function parseFenceRecord(content: string): LiveFenceRecord {
+  const value = JSON.parse(content) as Partial<LiveFenceRecord>
+  if (
+    !Number.isSafeInteger(value.pid) ||
+    Number(value.pid) <= 0 ||
+    typeof value.createdAt !== 'string' ||
+    !Number.isFinite(Date.parse(value.createdAt))
+  ) {
+    throw new Error('invalid live nonce fence record')
+  }
+  if (
+    value.schemaVersion !== undefined &&
+    (value.schemaVersion !== 2 ||
+      typeof value.ownerToken !== 'string' ||
+      !/^[0-9a-f-]{36}$/i.test(value.ownerToken))
+  ) {
+    throw new Error('invalid live nonce fence identity')
+  }
+  return value as LiveFenceRecord
+}
+
+async function linuxBootId(): Promise<string | null> {
+  if (process.platform !== 'linux') return null
+  try {
+    const value = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim()
+    return /^[0-9a-f-]{36}$/i.test(value) ? value : null
+  } catch {
+    return null
+  }
+}
+
+async function linuxBootedAtMs(): Promise<number | null> {
+  if (process.platform !== 'linux') return null
+  try {
+    const content = await readFile('/proc/stat', 'utf8')
+    const match = /^btime\s+(\d+)$/m.exec(content)
+    if (match?.[1] === undefined) return null
+    const seconds = Number(match[1])
+    return Number.isSafeInteger(seconds) && seconds > 0 ? seconds * 1_000 : null
+  } catch {
+    return null
+  }
+}
+
+async function linuxProcessStartTicks(pid: number): Promise<string | null> {
+  if (process.platform !== 'linux') return null
+  try {
+    const content = await readFile(`/proc/${String(pid)}/stat`, 'utf8')
+    const commandEnd = content.lastIndexOf(')')
+    if (commandEnd < 0) return null
+    const fieldsFromState = content
+      .slice(commandEnd + 1)
+      .trim()
+      .split(/\s+/)
+    const startTicks = fieldsFromState[19]
+    return startTicks !== undefined && /^\d+$/.test(startTicks) ? startTicks : null
+  } catch {
+    return null
+  }
+}
+
+async function observeFenceProcess(pid: number): Promise<LiveFenceProcessObservation> {
+  const exists = processExists(pid)
+  if (!exists) {
+    return { exists: false, bootId: null, processStartTicks: null, bootedAtMs: null }
+  }
+  const [bootId, processStartTicks, bootedAtMs] = await Promise.all([
+    linuxBootId(),
+    linuxProcessStartTicks(pid),
+    linuxBootedAtMs(),
+  ])
+  return { exists: processExists(pid), bootId, processStartTicks, bootedAtMs }
+}
+
+export function liveFenceBelongsToObservedProcess(
+  record: Readonly<LiveFenceRecord>,
+  observation: Readonly<LiveFenceProcessObservation>,
+): boolean {
+  if (!observation.exists) return false
+  if (record.bootId !== undefined && observation.bootId !== null) {
+    if (record.bootId !== observation.bootId) return false
+    if (
+      record.processStartTicks !== undefined &&
+      observation.processStartTicks !== null &&
+      record.processStartTicks !== observation.processStartTicks
+    ) {
+      return false
+    }
+    return true
+  }
+  if (
+    observation.bootedAtMs !== null &&
+    Date.parse(record.createdAt) + LEGACY_FENCE_BOOT_SKEW_MS < observation.bootedAtMs
+  ) {
+    return false
+  }
+  return true
+}
+
+async function createFenceFile(
+  lockPath: string,
+  record: Readonly<LiveFenceRecord>,
+): Promise<Readonly<{ dev: number; ino: number }>> {
+  const file = await open(lockPath, 'wx', 0o600)
+  try {
+    await file.writeFile(`${JSON.stringify(record)}\n`)
+    await file.sync()
+    const metadata = await file.stat()
+    return { dev: metadata.dev, ino: metadata.ino }
+  } finally {
+    await file.close()
+  }
+}
+
 export async function acquireLiveFence(
   stateDirectory: string,
 ): Promise<Readonly<{ release: () => Promise<void> }>> {
@@ -131,23 +264,40 @@ export async function acquireLiveFence(
   const lockPath = path.join(stateDirectory, 'nonce-owner.lock')
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const file = await open(lockPath, 'wx', 0o600)
-      await file.writeFile(
-        `${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() })}\n`,
-      )
-      await file.close()
+      const ownerToken = randomUUID()
+      const identity = await observeFenceProcess(process.pid)
+      const record = {
+        schemaVersion: 2 as const,
+        pid: process.pid,
+        createdAt: new Date().toISOString(),
+        ownerToken,
+        ...(identity.bootId === null ? {} : { bootId: identity.bootId }),
+        ...(identity.processStartTicks === null
+          ? {}
+          : { processStartTicks: identity.processStartTicks }),
+      }
+      const createdFile = await createFenceFile(lockPath, record)
       let released = false
       return {
         release: async () => {
           if (released) return
           released = true
-          await rm(lockPath, { force: true })
+          try {
+            const currentFile = await stat(lockPath)
+            if (currentFile.dev !== createdFile.dev || currentFile.ino !== createdFile.ino) return
+            const current = parseFenceRecord(await readFile(lockPath, 'utf8'))
+            if (current.pid !== process.pid || current.ownerToken !== ownerToken) return
+            await rm(lockPath)
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+          }
         },
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-      const existing = JSON.parse(await readFile(lockPath, 'utf8')) as { readonly pid?: unknown }
-      if (typeof existing.pid === 'number' && processExists(existing.pid)) {
+      const existing = parseFenceRecord(await readFile(lockPath, 'utf8'))
+      const observation = await observeFenceProcess(existing.pid)
+      if (liveFenceBelongsToObservedProcess(existing, observation)) {
         throw new Error(`live nonce owner already active with pid ${String(existing.pid)}`, {
           cause: error,
         })

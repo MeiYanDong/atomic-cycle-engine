@@ -54,4 +54,6 @@ cat /run/atomic-cycle-portfolio/heartbeat.json
 
 若出现 `UNKNOWN`、`DISPUTED`、Gas 熔断或未知 pending nonce：保持服务停止；先用多个 RPC 核对同一个交易哈希、规范回执、合约 WETH 余额、L1 data fee、operator fee 和账户 nonce。禁止通过重新签一笔相同交易“试试看”。明确对账完成后才允许恢复。
 
+`nonce-owner.lock` 的 schema v2 同时绑定 Linux boot ID、PID、`/proc/<pid>/stat` 启动 tick 与随机 owner token。服务重启前不得只凭“锁里的 PID 当前存在”判断旧 owner 仍存活；操作系统重启后 PID 可能被云助手等无关进程复用。旧 schema 锁只有在记录时间明确早于当前 boot（保留一分钟时钟偏差）或 PID 已不存在时才会自动迁移，否则继续失败关闭。删除锁前仍须确认对应 systemd unit 没有进程且 `attempts.jsonl` 没有未决交易。
+
 回滚代码只允许回到兼容当前链上合约和账本 schema 的已验证提交；代码回滚不会撤销链上合约或已签交易。紧急降险的权威操作是停止 watcher 并把执行合约设为 disarmed。
