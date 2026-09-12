@@ -23,6 +23,8 @@ void test('cross-venue shadow service has no signer, wallet, or shared live stat
   assert.match(installer, /systemctl enable --now atomic-cycle-shadow\.service/)
   assert.match(installer, /READ_ONLY_CROSS_VENUE_SHADOW/)
   assert.match(installer, /signingEnabled !== false \|\| value\.broadcastEnabled !== false/)
+  assert.match(cli, /maxTransportAttempts: 2/)
+  assert.match(cli, /transportRetryDelayMs: 200/)
 
   assert.doesNotMatch(
     `${unit}\n${installer}\n${cli}`,

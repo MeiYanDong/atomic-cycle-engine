@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add one bounded retry for thrown read-only transport failures in the Robinhood/BNB shadow while never retrying a
+  JSON-RPC contract error. Publish actual provider attempts, transient failures, recovered reads and unresolved quote
+  failures separately so public-RPC reliability remains measurable.
 - Add shadow-only BNB Chain registry and bounded discovery for PancakeSwap v2/v3 and Uniswap v2/v3/v4.
 - Add independent Uniswap v2 and PancakeSwap v2/v3 discovery sources on Robinhood Chain without widening execution authority.
 - Preserve unknown PancakeSwap v2 fee semantics instead of applying Uniswap's fixed fee.
