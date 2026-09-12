@@ -4,8 +4,10 @@
 
 ## 发布顺序
 
-1. 在本地固定提交并通过 `npm ci && npm run check && npm run test:fork`。
-2. 服务器以该提交创建只读 release，执行 `npm ci --no-audit --no-fund`、`npm run contract:compile`、`npm run build`，再把 `/opt/atomic-cycle-engine/current` 原子切换到该 release。
+1. 在本地固定提交并通过 `npm ci && npm run check && npm run test:fork`，并等待同一 merge commit 的 GitHub
+   Actions `quality` job 成功。生产机不重复承担完整测试矩阵；CI 才是合并门禁。
+2. 服务器以该提交创建只读 release，验证源码归档哈希、`package-lock.json` 和 commit identity。生产机只执行
+   release 构建与秘密扫描；两者成功前不得切换 `/opt/atomic-cycle-engine/current`。
 3. 安装 `deploy/systemd/atomic-cycle-live.service`，创建无交互用户 `atomic-cycle`、状态目录 `/var/lib/atomic-cycle-engine` 和配置目录 `/etc/atomic-cycle-engine`。
 4. 私钥只放在 `/etc/atomic-cycle-engine/base-signer.key`，要求 root:root、`0600`、普通文件且非符号链接。非敏感参数放在 `/etc/atomic-cycle-engine/live.env`。
 5. 先用 `BASE_SIGNER_CREDENTIAL_FILE=/etc/atomic-cycle-engine/base-signer.key npm run live:admin -- wallet` 核对地址与 Base ETH 余额。
@@ -15,6 +17,26 @@
 9. 若同机的只读经营面板需要 Base 运行摘要，仅读取 `/run/atomic-cycle-portfolio/heartbeat.json`。该文件只有白名单字段；不得放宽 `/var/lib/atomic-cycle-engine`、签名凭据或尝试账本的权限。
 
 当前目标 SWAS 主机的 Node 固定路径是 `/usr/local/bin/node`；发布前必须运行 `systemd-analyze verify`，不能假设发行版默认的 `/usr/bin/node` 存在。
+
+### 共享主机资源门禁
+
+当前 SWAS 没有 swap，且与 MANGA 实盘、机会看板和经营报表共用内存。禁止在
+`manga-opportunity-board.service` 运行时执行 `npm ci`、完整 `npm run check` 或 TypeScript release 构建。2026-09-13
+生产证据表明，即使 Node 堆限制为 320 MiB，`tsc` 仍会因自身堆耗尽而退出；看板暂停后使用 512 MiB 堆限制可完成
+构建。
+
+共享主机发布必须满足以下顺序：
+
+1. 读回 live/shadow 的 PID、release、未决尝试账本和当前 fence；确认旧 release 仍可回滚；
+2. 暂停只读看板及 `manga-business-report.timer/path/service`，不停止 Robinhood 或 Base 实盘执行器；
+3. 确认 `MemAvailable` 至少 800 MiB，否则终止发布，不用 OOM 试探主机；
+4. 对固定 commit 构建，使用 `NODE_OPTIONS=--max-old-space-size=512`，成功后再原子切换 release；
+5. 先重启并读回无签名 Shadow，再正常停止 Base live、确认旧 fence 已释放和无未决交易，然后启动新 live；
+6. 新 live 必须读回 schema v2 fence，且 PID、boot ID、process start ticks 与 `/proc` 一致；
+7. 恢复看板和报表触发器，等待目录完整、持久化一致和至少两个新的 Shadow 周期，再接受发布。
+
+任何步骤失败都必须恢复被暂停的只读服务，并保持 release symlink 指向最后一个已验证版本。当前发布仍由人工通过
+Cloud Assistant 编排；仓库尚未产出可直接下载的 CI release artifact，因此不能把现状描述为自动 CD。
 
 ## Robinhood/BNB 只读 Shadow
 
