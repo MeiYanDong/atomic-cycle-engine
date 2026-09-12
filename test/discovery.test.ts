@@ -32,6 +32,15 @@ function source(kind: FactoryEventKind): FactoryEventSource {
   return result
 }
 
+function networkSource(
+  network: 'base' | 'robinhood' | 'bnb',
+  kind: FactoryEventKind,
+): FactoryEventSource {
+  const result = eventSourcesForNetwork(network).find((item) => item.kind === kind)
+  assert.ok(result)
+  return result
+}
+
 function logFor(
   eventSource: FactoryEventSource,
   indexedArgs: Record<string, unknown>,
@@ -96,6 +105,43 @@ void test('decodes Uniswap v2 and v3 factory facts with their distinct fee units
   assert.equal(v3Fact.feeUnit, 'PIPS')
   assert.equal(v3Fact.feeValue, 500)
   assert.equal(v3Fact.tickSpacing, 10)
+})
+
+void test('keeps PancakeSwap v2 fee semantics unknown instead of applying the Uniswap fee', () => {
+  const token0 = testAddress(105)
+  const token1 = testAddress(106)
+  const pair = testAddress(107)
+  const eventSource = networkSource('bnb', 'PANCAKESWAP_V2')
+  const fact = decodePoolFact(
+    eventSource,
+    logFor(
+      eventSource,
+      { token0, token1 },
+      encodeAbiParameters(
+        [
+          { type: 'address', name: 'pair' },
+          { type: 'uint256', name: 'pairCount' },
+        ],
+        [pair, 1n],
+      ),
+    ),
+  )
+  assert.equal(fact.poolAddress, pair)
+  assert.equal(fact.feeUnit, 'DYNAMIC')
+  assert.equal(fact.feeValue, null)
+})
+
+void test('exposes independent Robinhood and BNB venue sources without granting execution', () => {
+  const robinhood = eventSourcesForNetwork('robinhood')
+  const bnb = eventSourcesForNetwork('bnb')
+  assert.deepEqual(
+    new Set(robinhood.map((item) => item.venueId)),
+    new Set(['UNISWAP_V2', 'UNISWAP_V3', 'UNISWAP_V4', 'PANCAKESWAP_V2', 'PANCAKESWAP_V3']),
+  )
+  assert.deepEqual(
+    new Set(bnb.map((item) => item.venueId)),
+    new Set(['PANCAKESWAP_V2', 'PANCAKESWAP_V3', 'UNISWAP_V2', 'UNISWAP_V3', 'UNISWAP_V4']),
+  )
 })
 
 void test('decodes Uniswap v4 singleton pool identity and hook without inventing an address', () => {

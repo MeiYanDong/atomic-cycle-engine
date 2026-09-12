@@ -76,6 +76,29 @@
 
 ## 下一阶段：Phase 1B 在线普查
 
+### S1A-03 Robinhood/BNB 独立场所注册与有界发现
+
+验收：
+
+- Robinhood 的 Uniswap v2、PancakeSwap v2/v3 与原有 Uniswap v3/v4 分别形成独立 venue；
+- BNB 的 PancakeSwap v2/v3 与 Uniswap v2/v3/v4 使用官方注册地址；
+- PancakeSwap v2 不继承 Uniswap v2 的固定手续费假设；
+- BNB 公共 RPC 不支持日志时结果必须是 `GAPPED`，不能写成零池；
+- 所有新增能力保持只读，`sign/broadcast/calldata` 仍为 unsupported/planned。
+
+### S1A-04 Robinhood/BNB 跨场所同块影子报价
+
+验收：
+
+- Robinhood 与 BNB 分别在一个固定规范块上比较 Uniswap/PancakeSwap V2/V3 的两跳闭环；
+- V2 使用各协议 Router 的 `getAmountsOut`，不自行猜测 PancakeSwap V2 手续费；
+- V3 先按 Factory/fee tier 核验池身份，再调用对应 QuoterV2；
+- 候选必须扣除保守 Gas 和风险储备，并明确区分毛利为正、影子净利为正与可执行；
+- 每个资产先跑最小金额；只有毛利为正才扩大第二金额，正常无机会轮次不浪费公共 RPC；
+- 公共快照不含 RPC 地址、钱包、Signer 或交易能力，`executableCycles` 恒为零；
+- RPC 不完整时显示 `PARTIAL`，不能把缺失报价当成零机会；
+- 独立 systemd 服务持续刷新，不影响既有 Base/Robinhood 实盘进程与账本。
+
 ### S1-01 Base P0 协议池普查
 
 验收：官方 factory/manager 事件可断点回填；每条记录含块哈希和日志索引；重组可撤销；gap 可定位与回填。

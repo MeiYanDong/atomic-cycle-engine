@@ -14,9 +14,9 @@ function argument(argv: readonly string[], name: string): string | undefined {
 
 function parseNetwork(argv: readonly string[]): NetworkId {
   const value = argument(argv, '--network')
-  if (value !== 'base' && value !== 'robinhood') {
+  if (value !== 'base' && value !== 'robinhood' && value !== 'bnb') {
     throw new Error(
-      'usage: npm run census:window -- --network base|robinhood [--blocks 250] [--chunk-size 250] [--output path]',
+      'usage: npm run census:window -- --network base|robinhood|bnb [--blocks 250] [--chunk-size 250] [--output path]',
     )
   }
   return value
@@ -42,7 +42,11 @@ async function main(): Promise<void> {
   const blockCount = boundedInteger(argument(argv, '--blocks'), 250, 1, 5_000, '--blocks')
   const chunkSize = boundedInteger(argument(argv, '--chunk-size'), 250, 1, 1_000, '--chunk-size')
   const network = NETWORKS[networkId]
-  const envName = networkId === 'base' ? 'BASE_READ_RPC_URL' : 'ROBINHOOD_READ_RPC_URL'
+  const envName = {
+    base: 'BASE_READ_RPC_URL',
+    robinhood: 'ROBINHOOD_READ_RPC_URL',
+    bnb: 'BNB_READ_RPC_URL',
+  }[networkId]
   const client = new ReadOnlyRpcClient(process.env[envName] ?? network.publicHttpRpc)
   const chainId = BigInt(await client.request<string>('eth_chainId'))
   const head = BigInt(await client.request<string>('eth_blockNumber'))

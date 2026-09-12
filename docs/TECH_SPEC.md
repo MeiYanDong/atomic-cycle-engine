@@ -2,7 +2,7 @@
 
 状态：`APPROVED_FOR_BOUNDED_BASE_CANARY_IMPLEMENTATION`
 
-执行模式：通用核心 `SHADOW`；Base V2/V3 切片 `BOUNDED_LIVE_CANARY`
+执行模式：通用核心 `SHADOW`；Robinhood/BNB 独立场所扩展 `SHADOW`；Base V2/V3 切片 `BOUNDED_LIVE_CANARY`
 
 实盘授权：`true`，仅限 ADR 0002 的地址、链、路线、资产 allowlist 和硬风险边界；当前是否激活以生产读回为准
 
@@ -104,7 +104,17 @@ PAIR 只是 Robinhood Chain 上的一个候选发现/平台来源。NINECAT 的�
 
 ### Robinhood Chain
 
-保留现有 Uniswap v3/v4 观察面和链上池普查；Long 与 PAIR 仅作为来源维度。现有固定 `USDG/WETH → PAIR target → USDG/WETH` 执行形状不迁移为通用执行器。
+在现有 Uniswap v3/v4 观察面之外增加官方 Uniswap v2 与 PancakeSwap v2/v3 独立场所。Long 与 PAIR 仅作为来源维度。现有固定 `USDG/WETH → PAIR target → USDG/WETH` 执行形状不迁移为通用执行器，新场所不继承其签名授权。
+
+### BNB Chain
+
+P0 只读范围为 PancakeSwap v2/v3 与 Uniswap v2/v3/v4。官方公共 RPC 只用于有界代码、区块和 `eth_call` 探测；由于公共端点不提供 `eth_getLogs`，任何持续日志普查必须显式使用独立 provider 能力并记录请求成本。BNB 的 PBS/Builder 竞争属于执行经济学；在没有 builder 路由、同状态全成本正样本和单独授权前，全部能力保持 shadow。
+
+### 跨场所影子报价切片
+
+第一批持续切片只比较两链上已核验地址的 Uniswap/PancakeSwap V2/V3 两跳闭环。V2 经协议 Router 获取 exact-output，V3 先读取 Factory 的 fee-tier 池身份，再调用该 venue 的 QuoterV2。整轮绑定同一块高与块哈希，结束后再次核对规范哈希；重组、链身份错误或顶层 RPC 失败整链 fail closed。报价失败与不存在的路线分开计数。
+
+影子净收益为 `闭环输出 - 输入 - gasPrice × 600,000 - 10 bps 风险储备`。每个资产先跑最小金额，只有该金额存在毛利为正路线才扩大第二金额；对当前标准 AMM 两跳切片，负的小额闭环不会因增加冲击而改善。该规则降低公共 RPC 消耗，但仍不外推到稳定曲线、Hook 或任意 3–4 跳。这是保守筛选，不是执行 Gas 的精确证明，也不是交易授权。公开文件只含链、场所、资产、金额档、漏斗、最佳路线和状态承诺，不含 RPC URL、钱包或任何签名材料。
 
 ## 7. 金额优化
 
@@ -150,7 +160,7 @@ CHAINWIDE
 
 - `npm run check` 全部通过；
 - Sniper Engineering v1.4 外部校验为 `VALID`；
-- 两条链的注册表核验无 `NO_CODE/UNKNOWN`，否则对应协议隔离；
+- 三条链的注册表核验无 `NO_CODE/UNKNOWN`，否则对应协议隔离；
 - 代码和产物秘密扫描为零发现；
 - 写入证据的每条机会都带链、状态、路线、金额和来源承诺。
 

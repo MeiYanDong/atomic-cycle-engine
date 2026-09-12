@@ -11,10 +11,18 @@ import {
 import { CONTRACTS, NETWORKS, type ContractDefinition, type NetworkId } from '../config/registry.js'
 
 export type FactoryEventKind =
-  'AERODROME_STANDARD' | 'SLIPSTREAM' | 'UNISWAP_V2' | 'UNISWAP_V3' | 'UNISWAP_V4'
+  | 'AERODROME_STANDARD'
+  | 'PANCAKESWAP_V2'
+  | 'SLIPSTREAM'
+  | 'UNISWAP_V2'
+  | 'UNISWAP_V3'
+  | 'UNISWAP_V4'
 
 const EVENTS: Readonly<Record<FactoryEventKind, AbiEvent>> = {
   UNISWAP_V2: parseAbiItem(
+    'event PairCreated(address indexed token0,address indexed token1,address pair,uint256 pairCount)',
+  ),
+  PANCAKESWAP_V2: parseAbiItem(
     'event PairCreated(address indexed token0,address indexed token1,address pair,uint256 pairCount)',
   ),
   UNISWAP_V3: parseAbiItem(
@@ -86,8 +94,16 @@ const SOURCE_KINDS: Readonly<Record<string, FactoryEventKind>> = {
   'base.aerodrome-slipstream.pool-factory-v2': 'SLIPSTREAM',
   'base.aerodrome-slipstream.pool-factory-v3': 'SLIPSTREAM',
   'base.pancakeswap-v3.factory': 'UNISWAP_V3',
+  'bnb.pancakeswap-v2.factory': 'PANCAKESWAP_V2',
+  'bnb.pancakeswap-v3.factory': 'UNISWAP_V3',
+  'bnb.uniswap-v2.factory': 'UNISWAP_V2',
+  'bnb.uniswap-v3.factory': 'UNISWAP_V3',
+  'bnb.uniswap-v4.pool-manager': 'UNISWAP_V4',
+  'robinhood.uniswap-v2.factory': 'UNISWAP_V2',
   'robinhood.uniswap-v3.factory': 'UNISWAP_V3',
   'robinhood.uniswap-v4.pool-manager': 'UNISWAP_V4',
+  'robinhood.pancakeswap-v2.factory': 'PANCAKESWAP_V2',
+  'robinhood.pancakeswap-v3.factory': 'UNISWAP_V3',
 }
 
 function sourceFromContract(contract: ContractDefinition): FactoryEventSource | null {
@@ -159,6 +175,12 @@ export function decodePoolFact(source: FactoryEventSource, log: RawRpcLog): Pool
       poolIdentity = poolAddress
       feeUnit = 'BPS'
       feeValue = 30
+      break
+    case 'PANCAKESWAP_V2':
+      poolAddress = requiredAddress(args, 'pair')
+      poolIdentity = poolAddress
+      feeUnit = 'DYNAMIC'
+      feeValue = null
       break
     case 'UNISWAP_V3':
       poolAddress = requiredAddress(args, 'pool')

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add shadow-only BNB Chain registry and bounded discovery for PancakeSwap v2/v3 and Uniswap v2/v3/v4.
+- Add independent Uniswap v2 and PancakeSwap v2/v3 discovery sources on Robinhood Chain without widening execution authority.
+- Preserve unknown PancakeSwap v2 fee semantics instead of applying Uniswap's fixed fee.
+- Add a credential-free continuous cross-venue shadow that uses protocol Router/QuoterV2 calls at one fixed block,
+  subtracts conservative Gas and risk reserves, and publishes a sanitized public snapshot.
+
 - Publish a same-host, group-readable Base runtime heartbeat containing only an explicit operations allowlist, while
   keeping the signer credential, mutation ledger, RPC details, route failures and private heartbeat isolated.
 
