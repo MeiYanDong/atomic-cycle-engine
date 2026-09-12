@@ -39,6 +39,7 @@
     "live:admin": "tsx src/cli/base-live-admin.ts",
     "live:watch": "tsx src/cli/base-live-watch.ts",
     "registry:verify": "tsx src/cli/verify-registry.ts",
+    "shadow:cross-venue": "tsx src/cli/cross-venue-shadow.ts",
     "secret:scan": "tsx scripts/secret-scan.ts",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run spec:check && npm run contract:compile && npm test && npm run test:contract && npm run secret:scan"
   },

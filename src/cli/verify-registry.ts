@@ -33,8 +33,10 @@ interface AerodromeRegistryResult {
 function parseNetwork(argv: readonly string[]): NetworkId {
   const index = argv.indexOf('--network')
   const value = index >= 0 ? argv[index + 1] : undefined
-  if (value !== 'base' && value !== 'robinhood') {
-    throw new Error('usage: npm run registry:verify -- --network base|robinhood [--output path]')
+  if (value !== 'base' && value !== 'robinhood' && value !== 'bnb') {
+    throw new Error(
+      'usage: npm run registry:verify -- --network base|robinhood|bnb [--output path]',
+    )
   }
   return value
 }
@@ -108,7 +110,11 @@ async function main(): Promise<void> {
   assertRegistry()
   const networkId = parseNetwork(process.argv.slice(2))
   const network = NETWORKS[networkId]
-  const envName = networkId === 'base' ? 'BASE_READ_RPC_URL' : 'ROBINHOOD_READ_RPC_URL'
+  const envName = {
+    base: 'BASE_READ_RPC_URL',
+    robinhood: 'ROBINHOOD_READ_RPC_URL',
+    bnb: 'BNB_READ_RPC_URL',
+  }[networkId]
   const client = new ReadOnlyRpcClient(process.env[envName] ?? network.publicHttpRpc)
   const chainId = hexToBigInt(await client.request<string>('eth_chainId'))
   const blockNumber = hexToBigInt(await client.request<string>('eth_blockNumber'))

@@ -80,4 +80,17 @@ void test('registry identities are unique and platform contracts do not become v
   assert.equal(pairHook.platformId, 'PAIR')
   assert.equal(pairHook.venueId, 'UNISWAP_V4')
   assert.equal(pairHook.support, 'DISCOVERY_ONLY')
+
+  const robinhoodVenues = new Set(
+    CONTRACTS.filter(
+      (contract) => contract.network === 'robinhood' && contract.role === 'POOL_FACTORY',
+    ).map((contract) => contract.venueId),
+  )
+  assert.ok(robinhoodVenues.has('UNISWAP_V2'))
+  assert.ok(robinhoodVenues.has('PANCAKESWAP_V2'))
+  assert.ok(robinhoodVenues.has('PANCAKESWAP_V3'))
+
+  const bnbContracts = CONTRACTS.filter((contract) => contract.network === 'bnb')
+  assert.ok(bnbContracts.length >= 10)
+  assert.ok(bnbContracts.every((contract) => contract.platformId === null))
 })

@@ -1,0 +1,42 @@
+[Unit]
+Description=Atomic Cycle Engine read-only Robinhood and BNB cross-venue shadow
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=10min
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=atomic-cycle-shadow
+Group=atomic-cycle-shadow
+WorkingDirectory=/opt/atomic-cycle-engine/current
+UMask=0022
+ExecStart=/usr/local/bin/node /opt/atomic-cycle-engine/current/dist/src/cli/cross-venue-shadow.js --network all --output /var/lib/atomic-cycle-shadow/public.json --interval-seconds 120
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=20
+KillSignal=SIGTERM
+StateDirectory=atomic-cycle-shadow
+StateDirectoryMode=0755
+MemoryMax=192M
+TasksMax=64
+OOMPolicy=stop
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelLogs=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/atomic-cycle-shadow
+
+[Install]
+WantedBy=multi-user.target

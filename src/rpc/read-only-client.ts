@@ -4,6 +4,7 @@ export type ReadOnlyRpcMethod =
   | 'eth_chainId'
   | 'eth_getBlockByNumber'
   | 'eth_getCode'
+  | 'eth_gasPrice'
   | 'eth_getLogs'
   | 'net_version'
 
@@ -39,6 +40,7 @@ const ALLOWED_METHODS = new Set<ReadOnlyRpcMethod>([
   'eth_chainId',
   'eth_getBlockByNumber',
   'eth_getCode',
+  'eth_gasPrice',
   'eth_getLogs',
   'net_version',
 ])

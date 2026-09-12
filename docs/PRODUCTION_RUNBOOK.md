@@ -16,6 +16,21 @@
 
 当前目标 SWAS 主机的 Node 固定路径是 `/usr/local/bin/node`；发布前必须运行 `systemd-analyze verify`，不能假设发行版默认的 `/usr/bin/node` 存在。
 
+## Robinhood/BNB 只读 Shadow
+
+`deploy/systemd/atomic-cycle-shadow.service` 与 Base Signer 完全独立。它使用专用的
+`atomic-cycle-shadow` 无登录用户、公开 RPC 和 `/var/lib/atomic-cycle-shadow/public.json`，不加载 EnvironmentFile、
+credential、钱包、执行合约或交易账本。部署顺序：
+
+1. 完成相同的固定提交、`npm ci`、`npm run check` 与构建；
+2. 创建系统用户并安装 unit，运行 `systemd-analyze verify`；
+3. 启动服务，等首轮文件生成后核对文件为 `0644`、目录为 `0755`；
+4. 核对 JSON 中 `signingEnabled=false`、`broadcastEnabled=false`、每链状态与块承诺；
+5. Nginx 只能静态只读暴露该文件。服务 `PARTIAL` 时页面必须显示不完整，不能写成零机会。
+
+Shadow 可以与 Base live canary 同机运行，因为它们没有共享用户、状态目录、凭据、nonce owner 或写路径。升级
+Shadow 不得重启或改写 Base live unit。
+
 ## 激活后读回
 
 至少核对：
