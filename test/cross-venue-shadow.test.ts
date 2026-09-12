@@ -93,6 +93,12 @@ void test('cross-venue shadow subtracts gas and risk without granting execution'
         failedRpcCalls: 0,
         unavailableQuotes: 0,
       },
+      providerStats: {
+        logicalRequests: 7,
+        providerRequests: 8,
+        transportFailures: 1,
+        recoveredTransportRequests: 1,
+      },
       reasonCode: 'NONE',
     },
   ])
@@ -102,6 +108,15 @@ void test('cross-venue shadow subtracts gas and risk without granting execution'
   const network = snapshot.networks[0]
   assert.ok(network)
   assert.equal(network.funnel.executableCycles, 0)
+  assert.equal(network.status, 'CURRENT')
+  assert.deepEqual(network.readCost, {
+    logicalQuotes: 4,
+    logicalProviderRequests: 7,
+    providerRequests: 8,
+    failedProviderRequests: 1,
+    recoveredTransportRequests: 1,
+    unresolvedQuoteFailures: 0,
+  })
   const bestObservedRoute = network.bestObservedRoutes[0]
   assert.ok(bestObservedRoute)
   assert.equal(bestObservedRoute.estimatedNetProfit, '0.00000000000000009 WETH')

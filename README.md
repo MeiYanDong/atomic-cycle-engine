@@ -54,6 +54,7 @@ npm run test:fork
 - [Shadow-first ADR](docs/decisions/0001-shadow-first-dual-chain.md)
 - [Base 实盘金丝雀 ADR](docs/decisions/0002-base-v2-v3-live-canary.md)
 - [三链独立场所 Shadow ADR](docs/decisions/0003-three-chain-independent-venue-shadow.md)
+- [公共 RPC 有界重试与真实请求计数 ADR](docs/decisions/0004-bounded-public-rpc-retry.md)
 - [实盘运行手册](docs/PRODUCTION_RUNBOOK.md)
 - [Sniper Engineering 规格](spec/sniper-spec.json)
 - [Phase 1A 真实读回](docs/evidence/2026-09-11-phase1a-bounded-census.md)

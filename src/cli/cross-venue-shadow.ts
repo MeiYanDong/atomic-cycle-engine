@@ -96,6 +96,10 @@ async function scanNetwork(network: ShadowNetwork): Promise<ShadowNetworkObserva
   const endpointVariable = network === 'bnb' ? 'BNB_READ_RPC_URL' : 'ROBINHOOD_READ_RPC_URL'
   const client = new ReadOnlyRpcClient(
     process.env[endpointVariable] ?? NETWORKS[network].publicHttpRpc,
+    {
+      maxTransportAttempts: 2,
+      transportRetryDelayMs: 200,
+    },
   )
   const adapter = createRpcDirectQuote(client)
   try {
@@ -107,6 +111,7 @@ async function scanNetwork(network: ShadowNetwork): Promise<ShadowNetworkObserva
         observedAt: new Date().toISOString(),
         scan: null,
         quoteStats: adapter.stats(),
+        providerStats: client.stats(),
         reasonCode: 'REORG_DETECTED',
       }
     }
@@ -115,6 +120,7 @@ async function scanNetwork(network: ShadowNetwork): Promise<ShadowNetworkObserva
       observedAt: new Date().toISOString(),
       scan,
       quoteStats: adapter.stats(),
+      providerStats: client.stats(),
       reasonCode: 'NONE',
     }
   } catch {
@@ -123,6 +129,7 @@ async function scanNetwork(network: ShadowNetwork): Promise<ShadowNetworkObserva
       observedAt: new Date().toISOString(),
       scan: null,
       quoteStats: adapter.stats().rpcCalls === 0 ? EMPTY_STATS : adapter.stats(),
+      providerStats: client.stats(),
       reasonCode: 'RPC_OR_QUOTE_UNAVAILABLE',
     }
   }

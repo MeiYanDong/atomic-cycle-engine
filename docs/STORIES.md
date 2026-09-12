@@ -97,6 +97,8 @@
 - 每个资产先跑最小金额；只有毛利为正才扩大第二金额，正常无机会轮次不浪费公共 RPC；
 - 公共快照不含 RPC 地址、钱包、Signer 或交易能力，`executableCycles` 恒为零；
 - RPC 不完整时显示 `PARTIAL`，不能把缺失报价当成零机会；
+- 只允许对 transport 抛错进行一次有界重试，JSON-RPC/EVM 错误不得重试；实际 provider 请求、transport
+  失败、成功恢复和最终未解决报价失败必须分别计数；
 - 独立 systemd 服务持续刷新，不影响既有 Base/Robinhood 实盘进程与账本。
 
 ### S1-01 Base P0 协议池普查

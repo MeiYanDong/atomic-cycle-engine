@@ -2,6 +2,7 @@ import { chmod, mkdir, rename, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute } from 'node:path'
 import { formatUnits } from 'viem'
 
+import type { ReadOnlyRpcStats } from '../rpc/read-only-client.js'
 import type { CrossVenueProfile, CrossVenueScan } from './cross-venue.js'
 import type { RpcQuoteStats } from './rpc-quote.js'
 
@@ -13,6 +14,7 @@ export interface ShadowNetworkObservation {
   readonly observedAt: string
   readonly scan: CrossVenueScan | null
   readonly quoteStats: RpcQuoteStats
+  readonly providerStats: ReadOnlyRpcStats
   readonly reasonCode: 'NONE' | 'RPC_OR_QUOTE_UNAVAILABLE' | 'REORG_DETECTED'
 }
 
@@ -42,7 +44,7 @@ function publicCandidate(candidate: CrossVenueScan['candidates'][number]) {
 
 export function buildPublicShadowSnapshot(observations: readonly ShadowNetworkObservation[]) {
   const networks = observations.map((observation) => {
-    const { profile, scan, quoteStats } = observation
+    const { profile, scan, quoteStats, providerStats } = observation
     const candidates = scan?.candidates ?? []
     const selected = candidates.some((candidate) => candidate.estimatedNetProfit > 0n)
       ? candidates.filter((candidate) => candidate.estimatedNetProfit > 0n).slice(0, 10)
@@ -74,8 +76,11 @@ export function buildPublicShadowSnapshot(observations: readonly ShadowNetworkOb
       },
       readCost: {
         logicalQuotes: quoteStats.logicalQuotes,
-        providerRequests: quoteStats.rpcCalls,
-        failedProviderRequests: quoteStats.failedRpcCalls,
+        logicalProviderRequests: providerStats.logicalRequests,
+        providerRequests: providerStats.providerRequests,
+        failedProviderRequests: providerStats.transportFailures,
+        recoveredTransportRequests: providerStats.recoveredTransportRequests,
+        unresolvedQuoteFailures: quoteStats.failedRpcCalls,
       },
       evidence:
         scan === null
