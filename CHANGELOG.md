@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Deploy the Robinhood-first and BNB-second route book from merge commit `8b67df7` to the shared production host while
+  preserving the existing Robinhood and Base live executors. Record two current fixed-block cycles, no gas-adjusted
+  positive route and no new broadcast; expanded routes remain quote-only until a typed atomic executor exists.
+- Recover the Robinhood live watcher from inode exhaustion after verifying its arm, locks and empty unresolved ledger;
+  remove only nine unreferenced, GitHub-rebuildable releases and add disk/inode, POSIX shell, dependency-mask and stale
+  nonce-fence gates to the production runbook.
 - Prioritize Robinhood and BNB discovery without changing live authority: add fixed-block EarnOnHood/Balancer V3 pool
   quotes, four reviewed Earn cycles, 40 single-leg Earn/DEX substitutions, three additional liquid BNB assets and eight
   best-of-venue three-hop BNB paths. A progressive geometric amount ladder stops after the first gross-negative tier
