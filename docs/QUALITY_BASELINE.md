@@ -1,25 +1,25 @@
 # 工程质量基线与未闭环项
 
-更新时间：2026-09-11
+更新时间：2026-09-13
 
 ## 已满足
 
-| 要求           | 证据                                                   | 当前结论                                                                             |
-| -------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| 高风险边界测试 | `test/*.test.ts`、`scripts/base-contract-test.mjs`     | 36/36；合约双向正路径、13 个拒绝边界和回执经济对账均通过                             |
-| 主网分叉测试   | `scripts/base-fork-test.mjs`                           | 规范 Base WETH/Uniswap V2/V3 双向均走到链上利润门禁，写入仅发生在本地 fork           |
-| 自动化门禁     | `npm run check`                                        | format、lint、Solhint、typecheck、spec、compile、test、secret scan 串行失败关闭      |
-| 合并前 CI      | `.github/workflows/ci.yml`                             | 固定生产提交的 GitHub Actions run 34591714223 已成功                                 |
-| 文档与设计决策 | `docs/TECH_SPEC.md`、`docs/decisions/0001-*`、`0002-*` | 通用 shadow 与受限 Base 实盘例外、边界、晋级条件和取舍均已记录                       |
-| 清晰故事卡     | `docs/STORIES.md`                                      | 通用研究、Base 金丝雀与尚未实现的通用多池实盘分别定义并可独立验收                    |
-| 统一代码风格   | Prettier + ESLint                                      | 本地门禁已通过                                                                       |
-| 依赖安全       | `npm audit --audit-level=low`                          | 0 vulnerabilities；高风险交易运行时仅依赖 `viem`，编译/测试依赖不进入 systemd 热路径 |
-| 外部机制规格   | `spec/sniper-spec.json`                                | Sniper v1.4 validator：VALID，0 error，0 warning                                     |
-| 只读链上核验   | `docs/evidence/2026-09-11-phase1a-bounded-census.md`   | Base 17/17、Robinhood 7/7 地址有 bytecode；Aerodrome 4 个批准工厂与配置一致          |
-| 有界池发现     | 同上                                                   | 两条链各 250 区块、所有配置来源无 gap；Base 25 facts，Robinhood 0 facts              |
-| 实盘安全边界   | `contracts/BaseV2V3CycleExecutor.sol`、ADR 0002        | 固定链/工厂/WETH、10-token allowlist、0.003 WETH 上限、链上毛利下限、撤防式提款      |
-| 生产运行定义   | `deploy/systemd/atomic-cycle-live.service`、运行手册   | 独立用户/目录/凭据、nonce fence、失败熔断、UNKNOWN fail-closed 和运行时读回已定义    |
-| 生产激活读回   | `docs/evidence/2026-09-11-base-live-activation.md`     | 主网部署/arm 成功；systemd active、0 重启、连续 heartbeat；激活时成交和净利润均为 0  |
+| 要求           | 证据                                                        | 当前结论                                                                                                          |
+| -------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 高风险边界测试 | `test/*.test.ts`、`scripts/base-contract-test.mjs`          | 56 tests：55 passed、1 个 Linux 专属场景在 macOS 跳过；3 条合约正路径、14 个拒绝边界和回执经济对账均通过          |
+| 主网分叉测试   | `scripts/base-fork-test.mjs`                                | 规范 Base WETH/Uniswap V2/V3 双向均走到链上利润门禁，写入仅发生在本地 fork                                        |
+| 自动化门禁     | `npm run check`                                             | format、lint、Solhint、typecheck、spec、compile、test、secret scan 串行失败关闭                                   |
+| 合并前 CI      | `.github/workflows/ci.yml`                                  | PR #9 的 GitHub Actions run 34741275173 已成功                                                                    |
+| 文档与设计决策 | `docs/TECH_SPEC.md`、`docs/decisions/0001-*`、`0002-*`      | 通用 shadow 与受限 Base 实盘例外、边界、晋级条件和取舍均已记录                                                    |
+| 清晰故事卡     | `docs/STORIES.md`                                           | 通用研究、Base 金丝雀与尚未实现的通用多池实盘分别定义并可独立验收                                                 |
+| 统一代码风格   | Prettier + ESLint                                           | 本地门禁已通过                                                                                                    |
+| 依赖安全       | `npm audit --audit-level=low`                               | 0 vulnerabilities；高风险交易运行时仅依赖 `viem`，编译/测试依赖不进入 systemd 热路径                              |
+| 外部机制规格   | `spec/sniper-spec.json`                                     | Sniper v1.4 validator：VALID，0 error，0 warning                                                                  |
+| 只读链上核验   | `docs/evidence/2026-09-11-phase1a-bounded-census.md`        | Base 17/17、Robinhood 7/7 地址有 bytecode；Aerodrome 4 个批准工厂与配置一致                                       |
+| 有界池发现     | 同上                                                        | 两条链各 250 区块、所有配置来源无 gap；Base 25 facts，Robinhood 0 facts                                           |
+| 实盘安全边界   | `contracts/BaseV2V3CycleExecutor.sol`、ADR 0002             | 固定链/工厂/WETH、10-token allowlist、0.003 WETH 上限、链上毛利下限、撤防式提款                                   |
+| 生产运行定义   | `deploy/systemd/atomic-cycle-live.service`、运行手册        | 独立用户/目录/凭据、nonce fence、失败熔断、UNKNOWN fail-closed 和运行时读回已定义                                 |
+| 生产激活读回   | `docs/evidence/2026-09-13-base-gas-only-live-production.md` | 新执行器主网部署、0.003 WETH 迁移和 arm 成功；固定利润底线均为 1 wei；systemd active、0 重启；Base 套利收益仍为 0 |
 
 ## 缺口、影响与优先级
 
@@ -39,4 +39,4 @@
 
 ## 本次上线结果
 
-前五项已按顺序闭环，并记录在生产激活证据中。通用 Phase 1B 与新增协议继续 shadow，不因窄金丝雀上线而跳过 typed adapter 与证据门槛。当前没有 `RECONCILED_SUCCESS`，所以已实现净利润仍为零。
+Base 有界实盘已按顺序闭环，并记录在最新生产证据中。正毛利候选不再被固定收益额度提前过滤，但仍须通过最新区块重报价、完整 Gas 和链上模拟。通用 Phase 1B 与新增协议继续只读发现，不因窄金丝雀上线而跳过 typed adapter 与证据门槛。当前 Base 没有 `RECONCILED_SUCCESS`，所以 Base 已实现净利润仍为零。
