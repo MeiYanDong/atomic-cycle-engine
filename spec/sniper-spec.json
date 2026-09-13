@@ -317,7 +317,7 @@
       "level": "TESTED",
       "access": "READ",
       "limitations": [
-        "Canonical Base Uniswap V2 reserve math plus Uniswap and PancakeSwap V3 QuoterV2 exact quotes are tested and live-read; other protocols and 3-4 hop exact quote adapters remain discovery-only."
+        "Canonical Base Uniswap V2 reserve math plus Uniswap and PancakeSwap V3 QuoterV2 exact quotes are tested and live-read. Robinhood Earn/Balancer V3 pool quotes, reviewed Earn/DEX hybrids, and curated BNB 3-hop best-of-venue paths are fixed-block read-only capabilities; their new mixed and BNB calldata paths remain unsupported."
       ]
     },
     "simulation": {
@@ -466,7 +466,7 @@
         "id": "all-other-routes",
         "profile": "NO_SHOT",
         "race_mode": "SHADOW",
-        "reason": "Protocols, tokens and route shapes outside the Base three-venue canary remain research-only."
+        "reason": "Protocols, tokens and route shapes outside the Base three-venue canary remain no-shot in this engine. Four exact Earn-only routes have a separate typed keeper, but that independent authorization does not grant mixed Earn/DEX or BNB execution here."
       }
     ],
     "race_experiment": {

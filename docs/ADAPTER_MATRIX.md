@@ -4,22 +4,25 @@
 
 ## 链上执行候选
 
-| 链        | 协议/场所            | Discovery                                          | State                         | Exact quote                        | Calldata | 当前状态                                      | 优先级 |
-| --------- | -------------------- | -------------------------------------------------- | ----------------------------- | ---------------------------------- | -------- | --------------------------------------------- | ------ |
-| Base      | Uniswap v2           | Factory events                                     | reserves                      | x*y=k 本地数学                     | typed    | bounded live + effect reconcile implemented   | P0     |
-| Base      | Uniswap v3           | Factory events                                     | slot0/liquidity + QuoterV2    | 固定规范块 QuoterV2                | typed    | bounded live + effect reconcile implemented   | P0     |
-| Base      | Uniswap v4           | PoolManager events                                 | StateView + Hook identity     | Quoter + Hook policy               | 无       | bounded discovery implemented / state planned | P0     |
-| Base      | Aerodrome Standard   | PoolFactory events                                 | reserves/stable flag          | typed pool quote                   | 无       | bounded discovery implemented / state planned | P0     |
-| Base      | Aerodrome Slipstream | 动态 FactoryRegistry + 全部已批准 CLFactory events | concentrated state            | official Quoter                    | 无       | registry + bounded discovery implemented      | P0     |
-| Base      | PancakeSwap v3       | Factory events                                     | Pancake slot0/liquidity       | 固定规范块 Base QuoterV2           | typed    | bounded live + effect reconcile implemented   | P0     |
-| Robinhood | Uniswap v3           | Factory events                                     | factory pool identity         | fixed-block QuoterV2               | 无       | bounded discovery + shadow quote implemented  | P0     |
-| Robinhood | Uniswap v4           | PoolManager events                                 | manager state + Hook identity | existing quote mechanism migration | 无       | bounded discovery implemented / state planned | P0     |
-| Robinhood | Uniswap v2           | Factory events                                     | Router-internal state         | protocol Router `getAmountsOut`    | 无       | bounded discovery + shadow quote implemented  | P0     |
-| Robinhood | PancakeSwap v2       | Factory events                                     | Router-internal fee semantics | protocol Router `getAmountsOut`    | 无       | bounded discovery + shadow quote implemented  | P0     |
-| Robinhood | PancakeSwap v3       | Factory events                                     | factory pool identity         | Robinhood QuoterV2                 | 无       | bounded discovery + shadow quote implemented  | P0     |
-| BNB       | PancakeSwap v2/v3    | Factory events                                     | Router/factory identity       | Router + protocol QuoterV2         | 无       | bounded discovery + shadow quote implemented  | P0     |
-| BNB       | Uniswap v2/v3        | Factory events                                     | Router/factory identity       | Router + protocol QuoterV2         | 无       | bounded discovery + shadow quote implemented  | P0     |
-| BNB       | Uniswap v4           | PoolManager events                                 | manager state                 | protocol-specific quote            | 无       | bounded discovery implemented / state planned | P0     |
+| 链        | 协议/场所            | Discovery                                          | State                         | Exact quote                         | Calldata                            | 当前状态                                      | 优先级 |
+| --------- | -------------------- | -------------------------------------------------- | ----------------------------- | ----------------------------------- | ----------------------------------- | --------------------------------------------- | ------ |
+| Base      | Uniswap v2           | Factory events                                     | reserves                      | x*y=k 本地数学                      | typed                               | bounded live + effect reconcile implemented   | P0     |
+| Base      | Uniswap v3           | Factory events                                     | slot0/liquidity + QuoterV2    | 固定规范块 QuoterV2                 | typed                               | bounded live + effect reconcile implemented   | P0     |
+| Base      | Uniswap v4           | PoolManager events                                 | StateView + Hook identity     | Quoter + Hook policy                | 无                                  | bounded discovery implemented / state planned | P0     |
+| Base      | Aerodrome Standard   | PoolFactory events                                 | reserves/stable flag          | typed pool quote                    | 无                                  | bounded discovery implemented / state planned | P0     |
+| Base      | Aerodrome Slipstream | 动态 FactoryRegistry + 全部已批准 CLFactory events | concentrated state            | official Quoter                     | 无                                  | registry + bounded discovery implemented      | P0     |
+| Base      | PancakeSwap v3       | Factory events                                     | Pancake slot0/liquidity       | 固定规范块 Base QuoterV2            | typed                               | bounded live + effect reconcile implemented   | P0     |
+| Robinhood | Uniswap v3           | Factory events                                     | factory pool identity         | fixed-block QuoterV2                | 无                                  | bounded discovery + shadow quote implemented  | P0     |
+| Robinhood | Uniswap v4           | PoolManager events                                 | manager state + Hook identity | existing quote mechanism migration  | 无                                  | bounded discovery implemented / state planned | P0     |
+| Robinhood | Uniswap v2           | Factory events                                     | Router-internal state         | protocol Router `getAmountsOut`     | 无                                  | bounded discovery + shadow quote implemented  | P0     |
+| Robinhood | PancakeSwap v2       | Factory events                                     | Router-internal fee semantics | protocol Router `getAmountsOut`     | 无                                  | bounded discovery + shadow quote implemented  | P0     |
+| Robinhood | PancakeSwap v3       | Factory events                                     | factory pool identity         | Robinhood QuoterV2                  | 无                                  | bounded discovery + shadow quote implemented  | P0     |
+| Robinhood | Earn / Balancer v3   | reviewed pool book                                 | Vault + pool identity         | fixed-block BatchRouter exact query | 独立 keeper 仅覆盖 4 条纯 Earn 路线 | pool quote implemented; hybrid quote-only     | P0     |
+| BNB       | PancakeSwap v2/v3    | Factory events                                     | Router/factory identity       | Router + protocol QuoterV2          | 无                                  | bounded discovery + shadow quote implemented  | P0     |
+| BNB       | Uniswap v2/v3        | Factory events                                     | Router/factory identity       | Router + protocol QuoterV2          | 无                                  | bounded discovery + shadow quote implemented  | P0     |
+| BNB       | Uniswap v4           | PoolManager events                                 | manager state                 | protocol-specific quote             | 无                                  | bounded discovery implemented / state planned | P0     |
+
+当前连续路线簿的实际分母是：Robinhood 80 条模板（36 DEX、4 Earn、40 混合，最长 3 跳）；BNB 80 条模板（72 两跳、8 三跳，6 个目标资产）。这是显式 reviewed 路线集合，不是“全链所有池”。
 
 ## 候选发现来源
 

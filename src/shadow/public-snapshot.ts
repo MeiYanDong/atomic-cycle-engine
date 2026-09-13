@@ -3,7 +3,7 @@ import { dirname, isAbsolute } from 'node:path'
 import { formatUnits } from 'viem'
 
 import type { ReadOnlyRpcStats } from '../rpc/read-only-client.js'
-import type { CrossVenueProfile, CrossVenueScan } from './cross-venue.js'
+import { routesForProfile, type CrossVenueProfile, type CrossVenueScan } from './cross-venue.js'
 import type { RpcQuoteStats } from './rpc-quote.js'
 
 export const PUBLIC_SHADOW_SCHEMA_VERSION = 1
@@ -26,8 +26,18 @@ function publicCandidate(candidate: CrossVenueScan['candidates'][number]) {
   const decimals = candidate.baseAsset.decimals
   return {
     chain: candidate.network === 'bnb' ? 'BNB Chain' : 'Robinhood Chain',
-    pair: `${candidate.baseAsset.symbol}/${candidate.target.symbol}`,
-    route: `${candidate.entryVenue.label} → ${candidate.exitVenue.label}`,
+    pair: candidate.assetPath.join(' → '),
+    route: candidate.routeSteps.map((step) => step.venueLabel).join(' → '),
+    hops: candidate.hopCount,
+    routeType: {
+      DEX_ONLY: 'DEX 跨池',
+      EARN_ONLY: 'Earn 多池',
+      HYBRID: 'Earn + DEX 混合',
+    }[candidate.routeClass],
+    executionBoundary:
+      candidate.executionReadiness === 'SEPARATE_TYPED_EXECUTOR'
+        ? '已有独立类型化执行路径；本扫描器不签名'
+        : '当前仅完成只读报价，尚无类型化执行路径',
     principal: `${decimal(candidate.amountIn, decimals)} ${candidate.baseAsset.symbol}`,
     grossProfit: `${decimal(candidate.grossProfit, decimals)} ${candidate.baseAsset.symbol}`,
     estimatedGasCost: `${decimal(candidate.estimatedGasCost, decimals)} ${candidate.baseAsset.symbol}`,
@@ -45,10 +55,31 @@ function publicCandidate(candidate: CrossVenueScan['candidates'][number]) {
 export function buildPublicShadowSnapshot(observations: readonly ShadowNetworkObservation[]) {
   const networks = observations.map((observation) => {
     const { profile, scan, quoteStats, providerStats } = observation
+    const routes = routesForProfile(profile)
+    const routeVenues = routes.flatMap((route) => route.steps.map((step) => step.venue))
+    const routeAssets = routes.flatMap((route) =>
+      route.steps.flatMap((step) => [step.tokenIn, step.tokenOut]),
+    )
+    const venues = [
+      ...new Map(
+        [...profile.venues, ...routeVenues].map((venue) => [venue.id, venue.label]),
+      ).values(),
+    ]
+    const assets = [
+      ...new Map(
+        [...profile.targets, ...routeAssets]
+          .filter(
+            (asset) => asset.address.toLowerCase() !== profile.baseAsset.address.toLowerCase(),
+          )
+          .map((asset) => [asset.address.toLowerCase(), asset.symbol]),
+      ).values(),
+    ]
     const candidates = scan?.candidates ?? []
     const selected = candidates.some((candidate) => candidate.estimatedNetProfit > 0n)
       ? candidates.filter((candidate) => candidate.estimatedNetProfit > 0n).slice(0, 10)
-      : candidates.slice(0, 3)
+      : candidates.some((candidate) => candidate.grossProfit > 0n)
+        ? candidates.filter((candidate) => candidate.grossProfit > 0n).slice(0, 3)
+        : candidates.slice(0, 3)
     const partial = scan === null || quoteStats.failedRpcCalls > 0
     return {
       id: profile.network,
@@ -60,12 +91,35 @@ export function buildPublicShadowSnapshot(observations: readonly ShadowNetworkOb
           ? 'RPC_OR_QUOTE_UNAVAILABLE'
           : observation.reasonCode,
       coverage: {
-        venues: profile.venues.map((venue) => venue.label),
-        assets: profile.targets.map((asset) => asset.symbol),
+        venues,
+        assets,
+        routeBook: {
+          totalRoutes: routes.length,
+          directDexRoutes: routes.filter(
+            (route) =>
+              route.steps.length === 2 &&
+              route.steps.every((step) => step.venue.kind !== 'BALANCER_V3_BATCH_ROUTER'),
+          ).length,
+          earnOnlyRoutes: routes.filter((route) =>
+            route.steps.every((step) => step.venue.kind === 'BALANCER_V3_BATCH_ROUTER'),
+          ).length,
+          hybridRoutes: routes.filter((route) => {
+            const earnHops = route.steps.filter(
+              (step) => step.venue.kind === 'BALANCER_V3_BATCH_ROUTER',
+            ).length
+            return earnHops > 0 && earnHops < route.steps.length
+          }).length,
+          twoHopRoutes: routes.filter((route) => route.steps.length === 2).length,
+          longerRoutes: routes.filter((route) => route.steps.length > 2).length,
+          optimizedVenueRoutes: routes.filter((route) =>
+            route.steps.some((step) => (step.alternativeVenues?.length ?? 0) > 0),
+          ).length,
+          maximumHops: Math.max(...routes.map((route) => route.steps.length)),
+        },
         configuredPrincipalSizes: profile.amountsIn.map(
           (amount) => `${decimal(amount, profile.baseAsset.decimals)} ${profile.baseAsset.symbol}`,
         ),
-        principalProbePolicy: '最小金额毛利为正后才扩大金额',
+        principalProbePolicy: '逐档毛利为正才继续放大；观察档位不是执行资金上限',
       },
       funnel: {
         attemptedCycles: scan?.attemptedCycles ?? 0,

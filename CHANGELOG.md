@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Prioritize Robinhood and BNB discovery without changing live authority: add fixed-block EarnOnHood/Balancer V3 pool
+  quotes, four reviewed Earn cycles, 40 single-leg Earn/DEX substitutions, three additional liquid BNB assets and eight
+  best-of-venue three-hop BNB paths. A progressive geometric amount ladder stops after the first gross-negative tier
+  without imposing a live capital cap. Public output now distinguishes route type and typed-execution readiness.
+
 - Bind the Base live nonce-owner fence to the Linux boot ID and process start ticks, retain a guarded legacy migration,
   and verify the owner token before release so a reboot-time PID reuse cannot strand or steal the nonce lane.
 - Add one bounded retry for thrown read-only transport failures in the Robinhood/BNB shadow while never retrying a
