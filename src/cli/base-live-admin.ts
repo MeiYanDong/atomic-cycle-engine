@@ -7,9 +7,11 @@ import {
   encodeDeployData,
   encodeFunctionData,
   formatEther,
+  getAddress,
   getContractAddress,
   isAddressEqual,
   keccak256,
+  toHex,
   type Address,
   type Hex,
   type PrivateKeyAccount,
@@ -17,7 +19,12 @@ import {
 
 import { appendEvidence } from '../evidence/jsonl-store.js'
 import { BASE_GAS_PRICE_ORACLE, BASE_WETH } from '../live/base-v2-v3/addresses.js'
-import { BASE_EXECUTOR_ABI, ERC20_ABI, GAS_PRICE_ORACLE_ABI } from '../live/base-v2-v3/abi.js'
+import {
+  BASE_EXECUTOR_ABI,
+  ERC20_ABI,
+  GAS_PRICE_ORACLE_ABI,
+  LEGACY_BASE_EXECUTOR_ADMIN_ABI,
+} from '../live/base-v2-v3/abi.js'
 import { createBaseReadClient, type BaseReadClient } from '../live/base-v2-v3/client.js'
 import { loadSignerAccount } from '../live/base-v2-v3/credential.js'
 import { broadcastRawTransaction } from '../live/base-v2-v3/execution.js'
@@ -45,6 +52,8 @@ interface SentAdminTransaction {
   readonly receiptBlock: bigint
   readonly contractAddress: Address | null
 }
+
+const EXPECTED_EXECUTOR_VERSION = keccak256(toHex('BASE_MULTI_VENUE_V1'))
 
 function isImmutableReferences(value: unknown): value is ExecutorArtifact['immutableReferences'] {
   if (typeof value !== 'object' || value === null) return false
@@ -283,8 +292,13 @@ async function executorStatus(
       state: 'NO_CODE',
     }
   }
-  const [operator, armed, maximumAmountIn, minimumGrossProfit, wethBalance, approvals] =
+  const [version, operator, armed, maximumAmountIn, minimumGrossProfit, wethBalance, approvals] =
     await Promise.all([
+      client.readContract({
+        address: executor,
+        abi: BASE_EXECUTOR_ABI,
+        functionName: 'EXECUTOR_VERSION',
+      }),
       client.readContract({ address: executor, abi: BASE_EXECUTOR_ABI, functionName: 'operator' }),
       client.readContract({ address: executor, abi: BASE_EXECUTOR_ABI, functionName: 'armed' }),
       client.readContract({
@@ -318,6 +332,8 @@ async function executorStatus(
     signer: account.address,
     signerEth: formatEther(signerEth),
     executor,
+    version,
+    versionMatches: version === EXPECTED_EXECUTOR_VERSION,
     operator,
     operatorMatches: isAddressEqual(operator, account.address),
     contractArmed: armed,
@@ -329,20 +345,22 @@ async function executorStatus(
       (token) => token.symbol,
     ),
     state:
-      armed && policy.liveArm
-        ? 'LIVE_ARMED'
-        : armed
-          ? 'CONTRACT_ARMED_RUNTIME_BLOCKED'
-          : 'DISARMED',
+      version !== EXPECTED_EXECUTOR_VERSION
+        ? 'UNSUPPORTED_EXECUTOR_VERSION'
+        : armed && policy.liveArm
+          ? 'LIVE_ARMED'
+          : armed
+            ? 'CONTRACT_ARMED_RUNTIME_BLOCKED'
+            : 'DISARMED',
   }
 }
 
-async function deploy(
+async function deployExecutor(
   client: BaseReadClient,
   account: PrivateKeyAccount,
   policy: BaseLivePolicy,
+  seedPrincipal: boolean,
 ): Promise<void> {
-  if (policy.executorAddress !== null) throw new Error('executor is already configured')
   const artifact = await readArtifact()
   const data = encodeDeployData({
     abi: BASE_EXECUTOR_ABI,
@@ -357,12 +375,12 @@ async function deploy(
   const nonce = await client.getTransactionCount({ address: account.address, blockTag: 'pending' })
   const expectedAddress = getContractAddress({ from: account.address, nonce: BigInt(nonce) })
   const sent = await sendAdminTransaction({
-    label: 'DEPLOY_AND_SEED',
+    label: seedPrincipal ? 'DEPLOY_AND_SEED' : 'DEPLOY_NEXT_DISARMED',
     client,
     account,
     policy,
     data,
-    value: policy.maximumAmountIn,
+    value: seedPrincipal ? policy.maximumAmountIn : 0n,
   })
   if (sent.contractAddress === null || !isAddressEqual(sent.contractAddress, expectedAddress)) {
     throw new Error('deployment receipt address does not match the precommitted address')
@@ -375,8 +393,9 @@ async function deploy(
   const status = await executorStatus(client, account, deployedPolicy)
   if (
     status.state !== 'DISARMED' ||
+    status.versionMatches !== true ||
     status.operatorMatches !== true ||
-    status.executorWeth !== formatEther(policy.maximumAmountIn) ||
+    status.executorWeth !== formatEther(seedPrincipal ? policy.maximumAmountIn : 0n) ||
     status.approvedTokens.length !== BASE_CANARY_TOKENS.length
   ) {
     throw new Error('deployed executor readback failed')
@@ -390,8 +409,172 @@ async function deploy(
         sourceSha256: artifact.sourceSha256,
         compiler: artifact.compiler,
         runtimeCodeHash: keccak256(deployedCode),
-        principalWeth: formatEther(policy.maximumAmountIn),
-        next: 'Set BASE_EXECUTOR_ADDRESS to this address, verify status, then run arm.',
+        principalWeth: formatEther(seedPrincipal ? policy.maximumAmountIn : 0n),
+        next: seedPrincipal
+          ? 'Set BASE_EXECUTOR_ADDRESS to this address, verify status, then run arm.'
+          : 'Run migrate <executor> while the current watcher is stopped and its ledger is resolved.',
+      },
+      null,
+      2,
+    ),
+  )
+}
+
+async function migratePrincipal(
+  client: BaseReadClient,
+  account: PrivateKeyAccount,
+  policy: BaseLivePolicy,
+  destinationRaw: string | undefined,
+): Promise<void> {
+  if (policy.executorAddress === null) throw new Error('current executor address is not configured')
+  if (destinationRaw === undefined) throw new Error('migrate requires the new executor address')
+  const source = policy.executorAddress
+  const destination = getAddress(destinationRaw)
+  if (isAddressEqual(source, destination)) throw new Error('source and destination executors match')
+
+  const destinationPolicy = { ...policy, executorAddress: destination }
+  const destinationStatus = await executorStatus(client, account, destinationPolicy)
+  if (
+    destinationStatus.versionMatches !== true ||
+    destinationStatus.operatorMatches !== true ||
+    destinationStatus.maximumAmountInWeth !== formatEther(policy.maximumAmountIn) ||
+    destinationStatus.minimumContractProfitWeth !== formatEther(policy.minimumContractProfit) ||
+    destinationStatus.approvedTokens.length !== BASE_CANARY_TOKENS.length
+  ) {
+    throw new Error('destination executor policy readback failed')
+  }
+
+  const [sourceOperator, sourceArmed, sourceBalance, destinationBalanceBefore] = await Promise.all([
+    client.readContract({
+      address: source,
+      abi: LEGACY_BASE_EXECUTOR_ADMIN_ABI,
+      functionName: 'operator',
+    }),
+    client.readContract({
+      address: source,
+      abi: LEGACY_BASE_EXECUTOR_ADMIN_ABI,
+      functionName: 'armed',
+    }),
+    client.readContract({
+      address: BASE_WETH,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf',
+      args: [source],
+    }),
+    client.readContract({
+      address: BASE_WETH,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf',
+      args: [destination],
+    }),
+  ])
+  if (!isAddressEqual(sourceOperator, account.address)) {
+    throw new Error('signer is not the source executor operator')
+  }
+  if (destinationStatus.contractArmed === true && sourceBalance > 0n) {
+    throw new Error('destination executor must be disarmed before principal migration')
+  }
+  if (sourceBalance === 0n && destinationBalanceBefore < policy.maximumAmountIn) {
+    throw new Error('no migratable source principal and destination is underfunded')
+  }
+
+  const transactionHashes: Hex[] = []
+  if (sourceArmed) {
+    const sent = await sendAdminTransaction({
+      label: 'MIGRATE_DISARM_SOURCE',
+      client,
+      account,
+      policy,
+      to: source,
+      data: encodeFunctionData({
+        abi: LEGACY_BASE_EXECUTOR_ADMIN_ABI,
+        functionName: 'setArmed',
+        args: [false],
+      }),
+      value: 0n,
+    })
+    transactionHashes.push(sent.hash)
+    const armedAfter = await client.readContract({
+      address: source,
+      abi: LEGACY_BASE_EXECUTOR_ADMIN_ABI,
+      functionName: 'armed',
+    })
+    if (armedAfter) throw new Error('source executor disarm readback failed')
+  }
+
+  if (sourceBalance > 0n) {
+    const sent = await sendAdminTransaction({
+      label: 'MIGRATE_PRINCIPAL',
+      client,
+      account,
+      policy,
+      to: source,
+      data: encodeFunctionData({
+        abi: LEGACY_BASE_EXECUTOR_ADMIN_ABI,
+        functionName: 'withdraw',
+        args: [BASE_WETH, sourceBalance, destination],
+      }),
+      value: 0n,
+    })
+    transactionHashes.push(sent.hash)
+  }
+
+  const [sourceBalanceAfter, destinationBalanceAfter] = await Promise.all([
+    client.readContract({
+      address: BASE_WETH,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf',
+      args: [source],
+    }),
+    client.readContract({
+      address: BASE_WETH,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf',
+      args: [destination],
+    }),
+  ])
+  if (
+    sourceBalanceAfter !== 0n ||
+    destinationBalanceAfter !== destinationBalanceBefore + sourceBalance ||
+    destinationBalanceAfter < policy.maximumAmountIn
+  ) {
+    throw new Error('principal migration balance readback failed')
+  }
+
+  if (destinationStatus.contractArmed !== true) {
+    const sent = await sendAdminTransaction({
+      label: 'MIGRATE_ARM_DESTINATION',
+      client,
+      account,
+      policy: destinationPolicy,
+      to: destination,
+      data: encodeFunctionData({
+        abi: BASE_EXECUTOR_ABI,
+        functionName: 'setArmed',
+        args: [true],
+      }),
+      value: 0n,
+    })
+    transactionHashes.push(sent.hash)
+  }
+
+  const finalStatus = await executorStatus(client, account, destinationPolicy)
+  if (
+    finalStatus.state !== 'LIVE_ARMED' ||
+    finalStatus.executorWeth !== formatEther(destinationBalanceAfter)
+  ) {
+    throw new Error('destination executor final readback failed')
+  }
+  console.log(
+    JSON.stringify(
+      {
+        status: 'MIGRATED_AND_LIVE_ARMED',
+        source,
+        destination,
+        migratedWeth: formatEther(sourceBalance),
+        destinationWeth: formatEther(destinationBalanceAfter),
+        transactionHashes,
+        next: 'Persist BASE_EXECUTOR_ADDRESS, start the watcher, and verify a fresh heartbeat.',
       },
       null,
       2,
@@ -460,7 +643,12 @@ if (command === 'wallet' || command === 'status') {
   const fence = await acquireLiveFence(policy.stateDirectory)
   try {
     if (command === 'deploy') {
-      await deploy(client, account, policy)
+      if (policy.executorAddress !== null) throw new Error('executor is already configured')
+      await deployExecutor(client, account, policy, true)
+    } else if (command === 'deploy-next') {
+      await deployExecutor(client, account, policy, false)
+    } else if (command === 'migrate') {
+      await migratePrincipal(client, account, policy, process.argv[3])
     } else if (command === 'arm') {
       await setArm(client, account, policy, true)
     } else if (command === 'disarm') {

@@ -18,6 +18,6 @@ void describe('Base V2/V3 quote primitives', () => {
   void it('returns zero instead of creating a quote from invalid state', () => {
     assert.equal(uniswapV2AmountOut(1n, 0n, 1n), 0n)
     assert.equal(uniswapV3SpotAmountOut(1n, 0n, 500, true), 0n)
-    assert.equal(uniswapV3SpotAmountOut(1n, 2n ** 96n, 250, true), 0n)
+    assert.equal(uniswapV3SpotAmountOut(1n, 2n ** 96n, 1_000_000, true), 0n)
   })
 })

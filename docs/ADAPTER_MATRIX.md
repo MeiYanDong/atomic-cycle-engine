@@ -6,12 +6,12 @@
 
 | 链        | 协议/场所            | Discovery                                          | State                         | Exact quote                        | Calldata | 当前状态                                      | 优先级 |
 | --------- | -------------------- | -------------------------------------------------- | ----------------------------- | ---------------------------------- | -------- | --------------------------------------------- | ------ |
-| Base      | Uniswap v2           | Factory events                                     | reserves                      | x*y=k 本地数学                     | 无       | bounded discovery + 数学核 implemented        | P0     |
-| Base      | Uniswap v3           | Factory events                                     | slot0/ticks/liquidity         | QuoterV2 + 本地状态                | 无       | bounded discovery implemented / state planned | P0     |
+| Base      | Uniswap v2           | Factory events                                     | reserves                      | x*y=k 本地数学                     | typed    | bounded live + effect reconcile implemented   | P0     |
+| Base      | Uniswap v3           | Factory events                                     | slot0/liquidity + QuoterV2    | 固定规范块 QuoterV2                | typed    | bounded live + effect reconcile implemented   | P0     |
 | Base      | Uniswap v4           | PoolManager events                                 | StateView + Hook identity     | Quoter + Hook policy               | 无       | bounded discovery implemented / state planned | P0     |
 | Base      | Aerodrome Standard   | PoolFactory events                                 | reserves/stable flag          | typed pool quote                   | 无       | bounded discovery implemented / state planned | P0     |
 | Base      | Aerodrome Slipstream | 动态 FactoryRegistry + 全部已批准 CLFactory events | concentrated state            | official Quoter                    | 无       | registry + bounded discovery implemented      | P0     |
-| Base      | PancakeSwap v3       | Factory events                                     | slot0/ticks/liquidity         | Base-specific Quoter               | 无       | bounded discovery implemented / state planned | P1     |
+| Base      | PancakeSwap v3       | Factory events                                     | Pancake slot0/liquidity       | 固定规范块 Base QuoterV2           | typed    | bounded live + effect reconcile implemented   | P0     |
 | Robinhood | Uniswap v3           | Factory events                                     | factory pool identity         | fixed-block QuoterV2               | 无       | bounded discovery + shadow quote implemented  | P0     |
 | Robinhood | Uniswap v4           | PoolManager events                                 | manager state + Hook identity | existing quote mechanism migration | 无       | bounded discovery implemented / state planned | P0     |
 | Robinhood | Uniswap v2           | Factory events                                     | Router-internal state         | protocol Router `getAmountsOut`    | 无       | bounded discovery + shadow quote implemented  | P0     |

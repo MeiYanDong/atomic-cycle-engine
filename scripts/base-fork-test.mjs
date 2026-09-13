@@ -182,8 +182,38 @@ async function main() {
 
     const block = await publicClient.getBlock()
     const directions = []
-    for (const v2First of [true, false]) {
-      const route = { intermediateToken: USDC, v3Fee: 500, v2First }
+    const routes = [
+      {
+        direction: 'uniswap_v2_to_uniswap_v3',
+        route: { intermediateToken: USDC, entryVenue: 0, entryFee: 0, exitVenue: 1, exitFee: 500 },
+      },
+      {
+        direction: 'uniswap_v3_to_uniswap_v2',
+        route: { intermediateToken: USDC, entryVenue: 1, entryFee: 500, exitVenue: 0, exitFee: 0 },
+      },
+      {
+        direction: 'uniswap_v3_to_pancakeswap_v3',
+        route: {
+          intermediateToken: USDC,
+          entryVenue: 1,
+          entryFee: 100,
+          exitVenue: 2,
+          exitFee: 100,
+        },
+      },
+      {
+        direction: 'pancakeswap_v3_to_uniswap_v3',
+        route: {
+          intermediateToken: USDC,
+          entryVenue: 2,
+          entryFee: 100,
+          exitVenue: 1,
+          exitFee: 100,
+        },
+      },
+    ]
+    for (const item of routes) {
+      const { direction, route } = item
       const canonicalPools = await publicClient.readContract({
         address: executor,
         abi: artifact.abi,
@@ -199,24 +229,21 @@ async function main() {
           args: [route, TEST_AMOUNT_IN, 1n, block.timestamp + 300n, block.number + 10n],
         })
         directions.push({
-          direction: v2First ? 'v2_to_v3' : 'v3_to_v2',
+          direction,
           result: 'positive_on_fork',
           grossProfit: simulation.result[1].toString(),
-          v2Pair: canonicalPools[0],
-          v3Pool: canonicalPools[1],
+          entryPool: canonicalPools[0],
+          exitPool: canonicalPools[1],
         })
       } catch (error) {
         if (!containsExpectedError(error, 'ProfitTooLow', 'ProfitTooLow(uint256,uint256)')) {
-          throw new Error(
-            `${v2First ? 'v2_to_v3' : 'v3_to_v2'} failed before the on-chain profit gate`,
-            { cause: error },
-          )
+          throw new Error(`${direction} failed before the on-chain profit gate`, { cause: error })
         }
         directions.push({
-          direction: v2First ? 'v2_to_v3' : 'v3_to_v2',
+          direction,
           result: 'reached_profit_floor',
-          v2Pair: canonicalPools[0],
-          v3Pool: canonicalPools[1],
+          entryPool: canonicalPools[0],
+          exitPool: canonicalPools[1],
         })
       }
     }

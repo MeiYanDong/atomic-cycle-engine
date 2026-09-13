@@ -101,6 +101,18 @@
   失败、成功恢复和最终未解决报价失败必须分别计数；
 - 独立 systemd 服务持续刷新，不影响既有 Base/Robinhood 实盘进程与账本。
 
+### S1A-05 Base 三场所有界实盘
+
+验收：
+
+- Uniswap V2、Uniswap V3、PancakeSwap V3 的规范池身份、fee tier 与回调类型由合约强制；
+- 任意 target、任意 calldata、delegatecall 与任意 approve 不进入接口；
+- 三个场所组成的全部有序两池组合在同一规范块筛选，候选通过完整交易模拟后才签名；
+- 成功必须由规范回执、`Executed` 事件、执行器 WETH 增量以及 L2/L1/operator fee 对账共同证明；
+- 新旧执行器迁移必须先获取唯一 nonce fence，旧执行器停用后原额转移 WETH，并在新执行器读回后恢复服务；
+- 主网分叉验证覆盖 Uniswap V2↔V3 与 Uniswap V3↔PancakeSwap V3 两种方向；
+- 公共 RPC 完整扫描 10 个 allowlist token 的目标耗时低于 10 秒，失败必须显式降级而不是当成零机会。
+
 ### S1-01 Base P0 协议池普查
 
 验收：官方 factory/manager 事件可断点回填；每条记录含块哈希和日志索引；重组可撤销；gap 可定位与回填。

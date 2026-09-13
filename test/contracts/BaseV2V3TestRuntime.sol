@@ -5,6 +5,10 @@ interface IBaseCycleCallback {
     function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external;
 }
 
+interface IBaseCyclePancakeCallback {
+    function pancakeV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external;
+}
+
 error MockInvalidConfiguration();
 error MockInsufficientBalance();
 error MockInvalidSwap();
@@ -138,5 +142,50 @@ contract MockBaseCycleV3Pool {
         amount0 = zeroForOne ? int256(input) : -int256(output);
         amount1 = zeroForOne ? -int256(output) : int256(input);
         IBaseCycleCallback(msg.sender).uniswapV3SwapCallback(amount0, amount1, bytes(""));
+    }
+}
+
+contract MockBaseCyclePancakeV3Pool {
+    address public token0;
+    address public token1;
+    address public weth;
+    uint256 public wethPerTokenNumerator;
+    uint256 public wethPerTokenDenominator;
+
+    function configure(
+        address token0_,
+        address token1_,
+        address weth_,
+        uint256 numerator_,
+        uint256 denominator_
+    ) external {
+        if (token0_ >= token1_ || numerator_ == 0 || denominator_ == 0) {
+            revert MockInvalidConfiguration();
+        }
+        token0 = token0_;
+        token1 = token1_;
+        weth = weth_;
+        wethPerTokenNumerator = numerator_;
+        wethPerTokenDenominator = denominator_;
+    }
+
+    function swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160, bytes calldata)
+        external
+        returns (int256 amount0, int256 amount1)
+    {
+        if (amountSpecified <= 0) revert MockInvalidSwap();
+        address tokenOut = zeroForOne ? token1 : token0;
+        uint256 input = uint256(amountSpecified);
+        uint256 output = tokenOut == weth
+            ? input * wethPerTokenNumerator / wethPerTokenDenominator
+            : input * wethPerTokenDenominator / wethPerTokenNumerator;
+        if (output == 0) revert MockInvalidSwap();
+
+        MockBaseCycleToken(tokenOut).mint(recipient, output);
+        amount0 = zeroForOne ? int256(input) : -int256(output);
+        amount1 = zeroForOne ? -int256(output) : int256(input);
+        IBaseCyclePancakeCallback(msg.sender).pancakeV3SwapCallback(
+            amount0, amount1, bytes("")
+        );
     }
 }

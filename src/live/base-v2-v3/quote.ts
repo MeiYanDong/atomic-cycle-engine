@@ -1,13 +1,17 @@
 import { getAddress, isAddressEqual, zeroAddress, type Address, type Hash } from 'viem'
 
 import {
+  BASE_PANCAKESWAP_V3_FACTORY,
+  BASE_PANCAKESWAP_V3_FEES,
+  BASE_PANCAKESWAP_V3_QUOTER_V2,
   BASE_UNISWAP_V2_FACTORY,
   BASE_UNISWAP_V3_FACTORY,
+  BASE_UNISWAP_V3_FEES,
   BASE_UNISWAP_V3_QUOTER_V2,
-  BASE_V3_FEES,
   BASE_WETH,
 } from './addresses.js'
 import {
+  PANCAKESWAP_V3_POOL_ABI,
   UNISWAP_V2_FACTORY_ABI,
   UNISWAP_V2_PAIR_ABI,
   UNISWAP_V3_FACTORY_ABI,
@@ -20,37 +24,71 @@ import type { BaseCanaryToken } from './tokens.js'
 const Q192 = 2n ** 192n
 const V3_FEE_DENOMINATOR = 1_000_000n
 
+export const BASE_VENUE_CODES = {
+  UNISWAP_V2: 0,
+  UNISWAP_V3: 1,
+  PANCAKESWAP_V3: 2,
+} as const
+
+export type BaseVenueId = keyof typeof BASE_VENUE_CODES
+
+interface BasePoolState {
+  readonly venue: BaseVenueId
+  readonly venueCode: (typeof BASE_VENUE_CODES)[BaseVenueId]
+  readonly pool: Address
+  readonly token0: Address
+  readonly fee: number
+  readonly reserve0: bigint | null
+  readonly reserve1: bigint | null
+  readonly sqrtPriceX96: bigint | null
+}
+
 export interface BaseCycleQuote {
   readonly chainId: 8453
   readonly blockNumber: bigint
   readonly blockHash: Hash
   readonly token: BaseCanaryToken
-  readonly v2Pair: Address
-  readonly v3Pool: Address
-  readonly v3Fee: number
-  readonly v2First: boolean
+  readonly entryVenue: BaseVenueId
+  readonly entryVenueCode: number
+  readonly entryPool: Address
+  readonly entryFee: number
+  readonly exitVenue: BaseVenueId
+  readonly exitVenueCode: number
+  readonly exitPool: Address
+  readonly exitFee: number
   readonly amountIn: bigint
   readonly approximateAmountOut: bigint
   readonly exactAmountOut: bigint | null
   readonly exactGrossProfit: bigint | null
-  readonly v3QuoteGas: bigint | null
+  readonly quoteGas: bigint | null
   readonly disposition: 'SPOT_NEGATIVE' | 'EXACT_NEGATIVE' | 'POSITIVE_GROSS' | 'QUOTE_FAILED'
   readonly error: string | null
 }
 
-interface V2State {
-  readonly pair: Address
-  readonly token0: Address
-  readonly reserve0: bigint
-  readonly reserve1: bigint
+interface ConcentratedVenueDefinition {
+  readonly venue: Exclude<BaseVenueId, 'UNISWAP_V2'>
+  readonly factory: Address
+  readonly quoter: Address
+  readonly fees: readonly number[]
+  readonly poolAbi: typeof UNISWAP_V3_POOL_ABI | typeof PANCAKESWAP_V3_POOL_ABI
 }
 
-interface V3State {
-  readonly pool: Address
-  readonly fee: (typeof BASE_V3_FEES)[number]
-  readonly sqrtPriceX96: bigint
-  readonly liquidity: bigint
-}
+const CONCENTRATED_VENUES: readonly ConcentratedVenueDefinition[] = [
+  {
+    venue: 'UNISWAP_V3',
+    factory: BASE_UNISWAP_V3_FACTORY,
+    quoter: BASE_UNISWAP_V3_QUOTER_V2,
+    fees: BASE_UNISWAP_V3_FEES,
+    poolAbi: UNISWAP_V3_POOL_ABI,
+  },
+  {
+    venue: 'PANCAKESWAP_V3',
+    factory: BASE_PANCAKESWAP_V3_FACTORY,
+    quoter: BASE_PANCAKESWAP_V3_QUOTER_V2,
+    fees: BASE_PANCAKESWAP_V3_FEES,
+    poolAbi: PANCAKESWAP_V3_POOL_ABI,
+  },
+]
 
 export function uniswapV2AmountOut(
   amountIn: bigint,
@@ -68,11 +106,7 @@ export function uniswapV3SpotAmountOut(
   fee: number,
   zeroForOne: boolean,
 ): bigint {
-  if (
-    amountIn <= 0n ||
-    sqrtPriceX96 <= 0n ||
-    !BASE_V3_FEES.includes(fee as (typeof BASE_V3_FEES)[number])
-  ) {
+  if (amountIn <= 0n || sqrtPriceX96 <= 0n || fee < 0 || fee >= Number(V3_FEE_DENOMINATOR)) {
     return 0n
   }
   const afterFee = amountIn * (V3_FEE_DENOMINATOR - BigInt(fee))
@@ -82,25 +116,23 @@ export function uniswapV3SpotAmountOut(
     : (afterFee * Q192) / (V3_FEE_DENOMINATOR * squaredPrice)
 }
 
-function orderedReserves(
-  state: V2State,
-  tokenIn: Address,
-): readonly [reserveIn: bigint, reserveOut: bigint] {
-  return isAddressEqual(state.token0, tokenIn)
-    ? [state.reserve0, state.reserve1]
-    : [state.reserve1, state.reserve0]
-}
-
-function wethIsToken0(token: Address): boolean {
-  return BigInt(BASE_WETH) < BigInt(token)
+function concentratedDefinition(
+  venue: Exclude<BaseVenueId, 'UNISWAP_V2'>,
+): ConcentratedVenueDefinition {
+  const definition = CONCENTRATED_VENUES.find((candidate) => candidate.venue === venue)
+  if (definition === undefined) throw new Error(`unsupported concentrated venue: ${venue}`)
+  return definition
 }
 
 async function readPoolIdentities(
   client: BaseReadClient,
   token: Address,
   blockNumber: bigint,
-): Promise<readonly [Address, readonly Address[]]> {
-  const [pair, ...pools] = await Promise.all([
+): Promise<readonly Readonly<{ venue: BaseVenueId; pool: Address; fee: number }>[]> {
+  const definitions = CONCENTRATED_VENUES.flatMap((venue) =>
+    venue.fees.map((fee) => ({ venue, fee })),
+  )
+  const [pair, ...concentratedPools] = await Promise.all([
     client.readContract({
       address: BASE_UNISWAP_V2_FACTORY,
       abi: UNISWAP_V2_FACTORY_ABI,
@@ -108,9 +140,9 @@ async function readPoolIdentities(
       args: [BASE_WETH, token],
       blockNumber,
     }),
-    ...BASE_V3_FEES.map((fee) =>
+    ...definitions.map(({ venue, fee }) =>
       client.readContract({
-        address: BASE_UNISWAP_V3_FACTORY,
+        address: venue.factory,
         abi: UNISWAP_V3_FACTORY_ABI,
         functionName: 'getPool',
         args: [BASE_WETH, token, fee],
@@ -118,143 +150,158 @@ async function readPoolIdentities(
       }),
     ),
   ])
-  return [getAddress(pair), pools.map((pool) => getAddress(pool))]
+
+  const identities: Array<Readonly<{ venue: BaseVenueId; pool: Address; fee: number }>> = []
+  const v2Pair = getAddress(pair)
+  if (!isAddressEqual(v2Pair, zeroAddress)) {
+    identities.push({ venue: 'UNISWAP_V2', pool: v2Pair, fee: 0 })
+  }
+  concentratedPools.forEach((pool, index) => {
+    const definition = definitions[index]
+    if (definition === undefined) return
+    const address = getAddress(pool)
+    if (!isAddressEqual(address, zeroAddress)) {
+      identities.push({ venue: definition.venue.venue, pool: address, fee: definition.fee })
+    }
+  })
+  return identities
 }
 
-async function readPoolStates(
+async function readPoolState(
   client: BaseReadClient,
-  pair: Address,
-  pools: readonly Address[],
+  identity: Readonly<{ venue: BaseVenueId; pool: Address; fee: number }>,
   blockNumber: bigint,
-): Promise<readonly [V2State, readonly V3State[]]> {
-  const activePools = pools
-    .map((pool, index) => ({ pool, fee: BASE_V3_FEES[index] }))
-    .filter(
-      (item): item is { pool: Address; fee: (typeof BASE_V3_FEES)[number] } =>
-        item.fee !== undefined && !isAddressEqual(item.pool, zeroAddress),
-    )
-  const [token0Value, reserves, v3StatesOrNull] = await Promise.all([
+): Promise<BasePoolState | null> {
+  if (identity.venue === 'UNISWAP_V2') {
+    const [token0Value, reserves] = await Promise.all([
+      client.readContract({
+        address: identity.pool,
+        abi: UNISWAP_V2_PAIR_ABI,
+        functionName: 'token0',
+        blockNumber,
+      }),
+      client.readContract({
+        address: identity.pool,
+        abi: UNISWAP_V2_PAIR_ABI,
+        functionName: 'getReserves',
+        blockNumber,
+      }),
+    ])
+    if (reserves[0] === 0n || reserves[1] === 0n) return null
+    return {
+      ...identity,
+      venueCode: BASE_VENUE_CODES[identity.venue],
+      token0: getAddress(token0Value),
+      reserve0: reserves[0],
+      reserve1: reserves[1],
+      sqrtPriceX96: null,
+    }
+  }
+
+  const definition = concentratedDefinition(identity.venue)
+  const [token0Value, slot0, liquidity] = await Promise.all([
     client.readContract({
-      address: pair,
-      abi: UNISWAP_V2_PAIR_ABI,
+      address: identity.pool,
+      abi: definition.poolAbi,
       functionName: 'token0',
       blockNumber,
     }),
     client.readContract({
-      address: pair,
-      abi: UNISWAP_V2_PAIR_ABI,
-      functionName: 'getReserves',
+      address: identity.pool,
+      abi: definition.poolAbi,
+      functionName: 'slot0',
       blockNumber,
     }),
-    Promise.all(
-      activePools.map(async (identity): Promise<V3State | null> => {
-        try {
-          const [slot0, liquidity] = await Promise.all([
-            client.readContract({
-              address: identity.pool,
-              abi: UNISWAP_V3_POOL_ABI,
-              functionName: 'slot0',
-              blockNumber,
-            }),
-            client.readContract({
-              address: identity.pool,
-              abi: UNISWAP_V3_POOL_ABI,
-              functionName: 'liquidity',
-              blockNumber,
-            }),
-          ])
-          const sqrtPriceX96 = slot0[0]
-          if (sqrtPriceX96 === 0n || liquidity === 0n) return null
-          return { ...identity, sqrtPriceX96, liquidity }
-        } catch {
-          return null
-        }
-      }),
-    ),
+    client.readContract({
+      address: identity.pool,
+      abi: definition.poolAbi,
+      functionName: 'liquidity',
+      blockNumber,
+    }),
   ])
-  const token0 = getAddress(token0Value)
-  const [reserve0, reserve1] = reserves
-  const v3States = v3StatesOrNull.filter((state): state is V3State => state !== null)
-  return [{ pair, token0, reserve0, reserve1 }, v3States]
+  if (slot0[0] === 0n || liquidity === 0n) return null
+  return {
+    ...identity,
+    venueCode: BASE_VENUE_CODES[identity.venue],
+    token0: getAddress(token0Value),
+    reserve0: null,
+    reserve1: null,
+    sqrtPriceX96: slot0[0],
+  }
 }
 
-async function quoteV3(
+function spotLeg(state: BasePoolState, tokenIn: Address, amountIn: bigint): bigint {
+  if (state.venue === 'UNISWAP_V2') {
+    if (state.reserve0 === null || state.reserve1 === null) return 0n
+    const zeroForOne = isAddressEqual(state.token0, tokenIn)
+    return uniswapV2AmountOut(
+      amountIn,
+      zeroForOne ? state.reserve0 : state.reserve1,
+      zeroForOne ? state.reserve1 : state.reserve0,
+    )
+  }
+  if (state.sqrtPriceX96 === null) return 0n
+  return uniswapV3SpotAmountOut(
+    amountIn,
+    state.sqrtPriceX96,
+    state.fee,
+    isAddressEqual(state.token0, tokenIn),
+  )
+}
+
+async function exactLeg(
   client: BaseReadClient,
-  input: {
-    readonly tokenIn: Address
-    readonly tokenOut: Address
-    readonly amountIn: bigint
-    readonly fee: number
-    readonly blockNumber: bigint
-  },
-): Promise<readonly [amountOut: bigint, gasEstimate: bigint]> {
+  state: BasePoolState,
+  tokenIn: Address,
+  tokenOut: Address,
+  amountIn: bigint,
+  blockNumber: bigint,
+): Promise<readonly [amountOut: bigint, quoteGas: bigint]> {
+  if (state.venue === 'UNISWAP_V2') return [spotLeg(state, tokenIn, amountIn), 0n]
+  const definition = concentratedDefinition(state.venue)
   const simulation = await client.simulateContract({
-    address: BASE_UNISWAP_V3_QUOTER_V2,
+    address: definition.quoter,
     abi: UNISWAP_V3_QUOTER_V2_ABI,
     functionName: 'quoteExactInputSingle',
     args: [
       {
-        tokenIn: input.tokenIn,
-        tokenOut: input.tokenOut,
-        amountIn: input.amountIn,
-        fee: input.fee,
+        tokenIn,
+        tokenOut,
+        amountIn,
+        fee: state.fee,
         sqrtPriceLimitX96: 0n,
       },
     ],
-    blockNumber: input.blockNumber,
+    blockNumber,
   })
   return [simulation.result[0], simulation.result[3]]
 }
 
-function approximateCycle(
-  v2: V2State,
-  v3: V3State,
-  token: Address,
+function quoteBase(
+  blockNumber: bigint,
+  blockHash: Hash,
+  token: BaseCanaryToken,
+  entry: BasePoolState,
+  exit: BasePoolState,
   amountIn: bigint,
-  v2First: boolean,
-): bigint {
-  const baseIsToken0 = wethIsToken0(token)
-  if (v2First) {
-    const [reserveIn, reserveOut] = orderedReserves(v2, BASE_WETH)
-    const intermediate = uniswapV2AmountOut(amountIn, reserveIn, reserveOut)
-    return uniswapV3SpotAmountOut(intermediate, v3.sqrtPriceX96, v3.fee, !baseIsToken0)
+  approximateAmountOut: bigint,
+) {
+  return {
+    chainId: 8453 as const,
+    blockNumber,
+    blockHash,
+    token,
+    entryVenue: entry.venue,
+    entryVenueCode: entry.venueCode,
+    entryPool: entry.pool,
+    entryFee: entry.fee,
+    exitVenue: exit.venue,
+    exitVenueCode: exit.venueCode,
+    exitPool: exit.pool,
+    exitFee: exit.fee,
+    amountIn,
+    approximateAmountOut,
   }
-  const intermediate = uniswapV3SpotAmountOut(amountIn, v3.sqrtPriceX96, v3.fee, baseIsToken0)
-  const [reserveIn, reserveOut] = orderedReserves(v2, token)
-  return uniswapV2AmountOut(intermediate, reserveIn, reserveOut)
-}
-
-async function exactCycle(
-  client: BaseReadClient,
-  input: {
-    readonly v2: V2State
-    readonly v3: V3State
-    readonly token: Address
-    readonly amountIn: bigint
-    readonly v2First: boolean
-    readonly blockNumber: bigint
-  },
-): Promise<readonly [amountOut: bigint, v3QuoteGas: bigint]> {
-  if (input.v2First) {
-    const [reserveIn, reserveOut] = orderedReserves(input.v2, BASE_WETH)
-    const intermediate = uniswapV2AmountOut(input.amountIn, reserveIn, reserveOut)
-    return quoteV3(client, {
-      tokenIn: input.token,
-      tokenOut: BASE_WETH,
-      amountIn: intermediate,
-      fee: input.v3.fee,
-      blockNumber: input.blockNumber,
-    })
-  }
-  const [intermediate, gasEstimate] = await quoteV3(client, {
-    tokenIn: BASE_WETH,
-    tokenOut: input.token,
-    amountIn: input.amountIn,
-    fee: input.v3.fee,
-    blockNumber: input.blockNumber,
-  })
-  const [reserveIn, reserveOut] = orderedReserves(input.v2, input.token)
-  return [uniswapV2AmountOut(intermediate, reserveIn, reserveOut), gasEstimate]
 }
 
 export async function quoteBaseTokenCycles(
@@ -263,68 +310,83 @@ export async function quoteBaseTokenCycles(
   amounts: readonly bigint[],
 ): Promise<readonly BaseCycleQuote[]> {
   const block = await client.getBlock({ blockTag: 'latest' })
-  const [pair, pools] = await readPoolIdentities(client, token.address, block.number)
-  if (isAddressEqual(pair, zeroAddress)) return []
-  const [v2, v3States] = await readPoolStates(client, pair, pools, block.number)
-  const quotes: BaseCycleQuote[] = []
-
-  for (const v3 of v3States) {
-    for (const amountIn of amounts) {
-      for (const v2First of [true, false]) {
-        const approximateAmountOut = approximateCycle(v2, v3, token.address, amountIn, v2First)
-        const base = {
-          chainId: 8453 as const,
-          blockNumber: block.number,
-          blockHash: block.hash,
-          token,
-          v2Pair: pair,
-          v3Pool: v3.pool,
-          v3Fee: v3.fee,
-          v2First,
-          amountIn,
-          approximateAmountOut,
-        }
-        if (approximateAmountOut <= amountIn) {
-          quotes.push({
-            ...base,
-            exactAmountOut: null,
-            exactGrossProfit: null,
-            v3QuoteGas: null,
-            disposition: 'SPOT_NEGATIVE',
-            error: null,
-          })
-          continue
-        }
-        try {
-          const [exactAmountOut, v3QuoteGas] = await exactCycle(client, {
-            v2,
-            v3,
-            token: token.address,
+  const identities = await readPoolIdentities(client, token.address, block.number)
+  const states = (
+    await Promise.all(identities.map((identity) => readPoolState(client, identity, block.number)))
+  ).filter((state): state is BasePoolState => state !== null)
+  const orderedAmounts = [...amounts].sort((left, right) =>
+    left < right ? -1 : left > right ? 1 : 0,
+  )
+  const pairTasks = states.flatMap((entry) =>
+    states
+      .filter((exit) => !isAddressEqual(entry.pool, exit.pool))
+      .map(async (exit): Promise<readonly BaseCycleQuote[]> => {
+        const quotes: BaseCycleQuote[] = []
+        for (const amountIn of orderedAmounts) {
+          const approximateIntermediate = spotLeg(entry, BASE_WETH, amountIn)
+          const approximateAmountOut = spotLeg(exit, token.address, approximateIntermediate)
+          const base = quoteBase(
+            block.number,
+            block.hash,
+            token,
+            entry,
+            exit,
             amountIn,
-            v2First,
-            blockNumber: block.number,
-          })
-          const positive = exactAmountOut > amountIn
-          quotes.push({
-            ...base,
-            exactAmountOut,
-            exactGrossProfit: positive ? exactAmountOut - amountIn : 0n,
-            v3QuoteGas,
-            disposition: positive ? 'POSITIVE_GROSS' : 'EXACT_NEGATIVE',
-            error: null,
-          })
-        } catch (error) {
-          quotes.push({
-            ...base,
-            exactAmountOut: null,
-            exactGrossProfit: null,
-            v3QuoteGas: null,
-            disposition: 'QUOTE_FAILED',
-            error: error instanceof Error ? error.message : String(error),
-          })
+            approximateAmountOut,
+          )
+          if (approximateAmountOut <= amountIn) {
+            quotes.push({
+              ...base,
+              exactAmountOut: null,
+              exactGrossProfit: null,
+              quoteGas: null,
+              disposition: 'SPOT_NEGATIVE',
+              error: null,
+            })
+            break
+          }
+
+          try {
+            const [intermediate, entryQuoteGas] = await exactLeg(
+              client,
+              entry,
+              BASE_WETH,
+              token.address,
+              amountIn,
+              block.number,
+            )
+            const [exactAmountOut, exitQuoteGas] = await exactLeg(
+              client,
+              exit,
+              token.address,
+              BASE_WETH,
+              intermediate,
+              block.number,
+            )
+            const positive = exactAmountOut > amountIn
+            quotes.push({
+              ...base,
+              exactAmountOut,
+              exactGrossProfit: positive ? exactAmountOut - amountIn : 0n,
+              quoteGas: entryQuoteGas + exitQuoteGas,
+              disposition: positive ? 'POSITIVE_GROSS' : 'EXACT_NEGATIVE',
+              error: null,
+            })
+            if (!positive) break
+          } catch (error) {
+            quotes.push({
+              ...base,
+              exactAmountOut: null,
+              exactGrossProfit: null,
+              quoteGas: null,
+              disposition: 'QUOTE_FAILED',
+              error: error instanceof Error ? error.message : String(error),
+            })
+            break
+          }
         }
-      }
-    }
-  }
-  return quotes
+        return quotes
+      }),
+  )
+  return (await Promise.all(pairTasks)).flat()
 }

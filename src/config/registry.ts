@@ -3,7 +3,8 @@ import { getAddress, type Address } from 'viem'
 import type { EvidenceLevel } from '../domain/types.js'
 
 export type NetworkId = 'base' | 'robinhood' | 'bnb'
-export type ContractSupport = 'DISCOVERY_ONLY' | 'PLANNED_ADAPTER' | 'REGISTRY_ONLY'
+export type ContractSupport =
+  'DISCOVERY_ONLY' | 'PLANNED_ADAPTER' | 'REGISTRY_ONLY' | 'LIVE_ADAPTER'
 
 export interface NetworkDefinition {
   readonly id: NetworkId
@@ -96,7 +97,7 @@ export const CONTRACTS: readonly ContractDefinition[] = [
     platformId: null,
     role: 'POOL_FACTORY',
     address: address('0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6'),
-    support: 'PLANNED_ADAPTER',
+    support: 'LIVE_ADAPTER',
     evidenceLevel: 'configured',
     evidenceUrl: 'https://github.com/Uniswap/util-contracts',
   },
@@ -108,7 +109,7 @@ export const CONTRACTS: readonly ContractDefinition[] = [
     platformId: null,
     role: 'POOL_FACTORY',
     address: address('0x33128a8fC17869897dcE68Ed026d694621f6FDfD'),
-    support: 'PLANNED_ADAPTER',
+    support: 'LIVE_ADAPTER',
     evidenceLevel: 'configured',
     evidenceUrl: UNISWAP_V3_BASE_SOURCE,
   },
@@ -120,7 +121,7 @@ export const CONTRACTS: readonly ContractDefinition[] = [
     platformId: null,
     role: 'QUOTER',
     address: address('0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a'),
-    support: 'PLANNED_ADAPTER',
+    support: 'LIVE_ADAPTER',
     evidenceLevel: 'configured',
     evidenceUrl: UNISWAP_V3_BASE_SOURCE,
   },
@@ -288,8 +289,20 @@ export const CONTRACTS: readonly ContractDefinition[] = [
     platformId: null,
     role: 'POOL_FACTORY',
     address: address('0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865'),
-    support: 'REGISTRY_ONLY',
+    support: 'LIVE_ADAPTER',
     evidenceLevel: 'configured',
+    evidenceUrl: PANCAKE_V3_SOURCE,
+  },
+  {
+    id: 'base.pancakeswap-v3.quoter-v2',
+    network: 'base',
+    protocolId: 'PANCAKESWAP_V3',
+    venueId: 'PANCAKESWAP_V3',
+    platformId: null,
+    role: 'QUOTER',
+    address: address('0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997'),
+    support: 'LIVE_ADAPTER',
+    evidenceLevel: 'live_observed',
     evidenceUrl: PANCAKE_V3_SOURCE,
   },
   {

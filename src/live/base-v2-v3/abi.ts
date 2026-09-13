@@ -32,6 +32,15 @@ export const UNISWAP_V3_POOL_ABI = parseAbi([
   'function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)',
 ])
 
+// Pancake V3 uses uint32 for feeProtocol. Decoding it with the Uniswap uint8
+// shape can reject otherwise valid pool state.
+export const PANCAKESWAP_V3_POOL_ABI = parseAbi([
+  'function token0() view returns (address)',
+  'function token1() view returns (address)',
+  'function liquidity() view returns (uint128)',
+  'function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint32 feeProtocol, bool unlocked)',
+])
+
 export const UNISWAP_V3_QUOTER_V2_ABI = [
   {
     type: 'function',
@@ -67,12 +76,21 @@ export const BASE_EXECUTOR_ABI = [
     inputs: [
       { name: 'routeHash', type: 'bytes32', indexed: true },
       { name: 'intermediateToken', type: 'address', indexed: true },
-      { name: 'v3Pool', type: 'address', indexed: true },
-      { name: 'v2First', type: 'bool', indexed: false },
+      { name: 'entryPool', type: 'address', indexed: true },
+      { name: 'exitPool', type: 'address', indexed: false },
+      { name: 'entryVenue', type: 'uint8', indexed: false },
+      { name: 'exitVenue', type: 'uint8', indexed: false },
       { name: 'amountIn', type: 'uint256', indexed: false },
       { name: 'amountOut', type: 'uint256', indexed: false },
       { name: 'grossProfit', type: 'uint256', indexed: false },
     ],
+  },
+  {
+    type: 'function',
+    name: 'EXECUTOR_VERSION',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'bytes32' }],
   },
   {
     type: 'constructor',
@@ -146,8 +164,10 @@ export const BASE_EXECUTOR_ABI = [
         type: 'tuple',
         components: [
           { name: 'intermediateToken', type: 'address' },
-          { name: 'v3Fee', type: 'uint24' },
-          { name: 'v2First', type: 'bool' },
+          { name: 'entryFee', type: 'uint24' },
+          { name: 'exitFee', type: 'uint24' },
+          { name: 'entryVenue', type: 'uint8' },
+          { name: 'exitVenue', type: 'uint8' },
         ],
       },
       { name: 'amountIn', type: 'uint256' },
@@ -159,6 +179,52 @@ export const BASE_EXECUTOR_ABI = [
       { name: 'amountOut', type: 'uint256' },
       { name: 'grossProfit', type: 'uint256' },
     ],
+  },
+  {
+    type: 'function',
+    name: 'withdraw',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'token', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'to', type: 'address' },
+    ],
+    outputs: [],
+  },
+] as const
+
+export const LEGACY_BASE_EXECUTOR_ADMIN_ABI = [
+  {
+    type: 'function',
+    name: 'armed',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+  {
+    type: 'function',
+    name: 'operator',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'address' }],
+  },
+  {
+    type: 'function',
+    name: 'setArmed',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'nextArmed', type: 'bool' }],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'withdraw',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'token', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'to', type: 'address' },
+    ],
+    outputs: [],
   },
 ] as const
 
