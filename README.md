@@ -57,10 +57,12 @@ npm run test:fork
 - [公共 RPC 有界重试与真实请求计数 ADR](docs/decisions/0004-bounded-public-rpc-retry.md)
 - [Base nonce fence 重启与 PID 复用 ADR](docs/decisions/0005-reboot-safe-live-fence.md)
 - [Base 多场所实盘与资金迁移 ADR](docs/decisions/0006-base-multivenue-live.md)
+- [Gas-only 正收益门槛 ADR](docs/decisions/0007-gas-only-positive-net-floor.md)
 - [实盘运行手册](docs/PRODUCTION_RUNBOOK.md)
 - [Sniper Engineering 规格](spec/sniper-spec.json)
 - [Phase 1A 真实读回](docs/evidence/2026-09-11-phase1a-bounded-census.md)
 - [Base 实盘激活证据](docs/evidence/2026-09-11-base-live-activation.md)
+- [Base 固定利润门槛移除与实盘证据](docs/evidence/2026-09-13-base-gas-only-live-production.md)
 
 ## 证据语言
 

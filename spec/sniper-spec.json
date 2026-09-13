@@ -1,8 +1,8 @@
 {
   "spec_version": "1.4",
   "case_id": "atomic-cycle-engine-base-multivenue-canary",
-  "design_status": "approved_bounded_live_canary_pending_runtime_readback",
-  "evidence_level": "repository_record_plus_live_read_and_fork_observation",
+  "design_status": "approved_bounded_live_canary_active",
+  "evidence_level": "repository_record_plus_live_runtime_chain_and_management_receipts",
   "live_execution_authorized": true,
   "objective": {
     "statement": "Measure and maximize risk-adjusted net return for a same-chain 2-4 hop atomic cycle while preserving state identity, authorization, settlement truth, and a complete opportunity denominator.",
@@ -92,7 +92,7 @@
     "operation_mode": "live",
     "network_scope": ["base-mainnet"],
     "route_scope": "WETH-token-WETH using any two distinct canonical pools across Uniswap V2, Uniswap V3 and PancakeSwap V3 with a ten-token capital allowlist",
-    "runtime_readback": "pending production deployment, arm transaction, service PID and heartbeat readback"
+    "runtime_readback": "Base production is active on executor 0x002ccD95D1304C6fB88f67183DC1e7d1b90A577F with 0.003 WETH, armed=true, both fixed profit floors at one wei, active systemd PID and a current heartbeat; no arbitrage broadcast or RECONCILED_SUCCESS exists yet"
   },
   "decision": {
     "correctness_invariants": [
@@ -286,8 +286,8 @@
       "counterfactual_outcome_recorded",
       "reconciliation_corrected"
     ],
-    "current_runtime_verified": false,
-    "services_or_transactions_run_this_case": false,
+    "current_runtime_verified": true,
+    "services_or_transactions_run_this_case": true,
     "effect_record_required_for_live_claim": true,
     "secret_material_permitted": false
   },
@@ -338,21 +338,21 @@
       "level": "TESTED",
       "access": "WRITE",
       "limitations": [
-        "Root-only or systemd credential loading and immutable transaction signing are implemented; no production transaction has been signed before funded deployment."
+        "Root-only or systemd credential loading and immutable transaction signing are implemented; receipt-attested deployment and migration used the production signer, while no Base arbitrage payload has been broadcast yet."
       ]
     },
     "broadcast": {
       "level": "IMPLEMENTED",
       "access": "WRITE",
       "limitations": [
-        "Same-raw fanout and endpoint-safe evidence exist; production mainnet acceptance and provider diversity remain unverified until activation."
+        "Same-raw fanout is active with two verified public Base endpoints; management transactions have canonical receipts, while the Base arbitrage payload path remains unexercised because no candidate has cleared the full live gate."
       ]
     },
     "reconcile": {
       "level": "TESTED",
       "access": "RECOVER",
       "limitations": [
-        "Nonce fencing, durable PLAN/BROADCAST/UNKNOWN/EFFECT stages, canonical receipt/event/WETH/L1-data-fee/operator-fee checks and restart blocking are implemented; production receipts do not yet exist."
+        "Nonce fencing, durable PLAN/BROADCAST/UNKNOWN/EFFECT stages, canonical receipt/event/WETH/L1-data-fee/operator-fee checks and restart blocking are implemented; management receipts exist but no production arbitrage receipt exists yet."
       ]
     },
     "exit": {
