@@ -4,6 +4,7 @@ import {
   encodeFunctionData,
   isAddressEqual,
   keccak256,
+  toHex,
   type Address,
   type Hash,
   type Hex,
@@ -19,6 +20,7 @@ import type { BaseLivePolicy } from './policy.js'
 import type { BaseCycleQuote } from './quote.js'
 
 const BPS_DENOMINATOR = 10_000n
+const EXPECTED_EXECUTOR_VERSION = keccak256(toHex('BASE_MULTI_VENUE_V1'))
 
 export interface PreparedLivePlan {
   readonly attemptId: string
@@ -29,10 +31,15 @@ export interface PreparedLivePlan {
   readonly signer: Address
   readonly token: Address
   readonly tokenSymbol: string
-  readonly v3Pool: Address
+  readonly entryPool: Address
+  readonly exitPool: Address
   readonly routeHash: Hash
-  readonly v3Fee: number
-  readonly v2First: boolean
+  readonly entryVenue: string
+  readonly entryVenueCode: number
+  readonly entryFee: number
+  readonly exitVenue: string
+  readonly exitVenueCode: number
+  readonly exitFee: number
   readonly amountIn: bigint
   readonly minimumProfit: bigint
   readonly simulatedGrossProfit: bigint
@@ -57,9 +64,11 @@ export type ReceiptReconciliationPlan = Pick<
   | 'nonce'
   | 'executor'
   | 'token'
-  | 'v3Pool'
+  | 'entryPool'
+  | 'exitPool'
   | 'routeHash'
-  | 'v2First'
+  | 'entryVenueCode'
+  | 'exitVenueCode'
   | 'amountIn'
   | 'minimumProfit'
   | 'executorWethBefore'
@@ -96,37 +105,50 @@ async function validateExecutorState(
   const code = await client.getBytecode({ address: executor })
   if (code === undefined || code === '0x') throw new Error('executor has no deployed code')
 
-  const [operator, armed, approved, maximumAmountIn, minimumGrossProfit, executorWethBalance] =
-    await Promise.all([
-      client.readContract({
-        address: executor,
-        abi: BASE_EXECUTOR_ABI,
-        functionName: 'operator',
-      }),
-      client.readContract({ address: executor, abi: BASE_EXECUTOR_ABI, functionName: 'armed' }),
-      client.readContract({
-        address: executor,
-        abi: BASE_EXECUTOR_ABI,
-        functionName: 'approvedToken',
-        args: [token],
-      }),
-      client.readContract({
-        address: executor,
-        abi: BASE_EXECUTOR_ABI,
-        functionName: 'maximumAmountIn',
-      }),
-      client.readContract({
-        address: executor,
-        abi: BASE_EXECUTOR_ABI,
-        functionName: 'minimumGrossProfit',
-      }),
-      client.readContract({
-        address: BASE_WETH,
-        abi: ERC20_ABI,
-        functionName: 'balanceOf',
-        args: [executor],
-      }),
-    ])
+  const [
+    version,
+    operator,
+    armed,
+    approved,
+    maximumAmountIn,
+    minimumGrossProfit,
+    executorWethBalance,
+  ] = await Promise.all([
+    client.readContract({
+      address: executor,
+      abi: BASE_EXECUTOR_ABI,
+      functionName: 'EXECUTOR_VERSION',
+    }),
+    client.readContract({
+      address: executor,
+      abi: BASE_EXECUTOR_ABI,
+      functionName: 'operator',
+    }),
+    client.readContract({ address: executor, abi: BASE_EXECUTOR_ABI, functionName: 'armed' }),
+    client.readContract({
+      address: executor,
+      abi: BASE_EXECUTOR_ABI,
+      functionName: 'approvedToken',
+      args: [token],
+    }),
+    client.readContract({
+      address: executor,
+      abi: BASE_EXECUTOR_ABI,
+      functionName: 'maximumAmountIn',
+    }),
+    client.readContract({
+      address: executor,
+      abi: BASE_EXECUTOR_ABI,
+      functionName: 'minimumGrossProfit',
+    }),
+    client.readContract({
+      address: BASE_WETH,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf',
+      args: [executor],
+    }),
+  ])
+  if (version !== EXPECTED_EXECUTOR_VERSION) throw new Error('executor version is not approved')
   if (!isAddressEqual(operator, signer)) throw new Error('signer is not the executor operator')
   if (!armed) throw new Error('executor is disarmed')
   if (!approved) throw new Error('candidate token is not approved on the executor')
@@ -192,8 +214,10 @@ export async function prepareLivePlan(
   const validThroughBlock = candidate.blockNumber + policy.validBlocks
   const route = {
     intermediateToken: candidate.token.address,
-    v3Fee: candidate.v3Fee,
-    v2First: candidate.v2First,
+    entryVenue: candidate.entryVenueCode,
+    entryFee: candidate.entryFee,
+    exitVenue: candidate.exitVenueCode,
+    exitFee: candidate.exitFee,
   } as const
   const routeHash = keccak256(
     encodeAbiParameters(
@@ -202,8 +226,10 @@ export async function prepareLivePlan(
           type: 'tuple',
           components: [
             { name: 'intermediateToken', type: 'address' },
-            { name: 'v3Fee', type: 'uint24' },
-            { name: 'v2First', type: 'bool' },
+            { name: 'entryFee', type: 'uint24' },
+            { name: 'exitFee', type: 'uint24' },
+            { name: 'entryVenue', type: 'uint8' },
+            { name: 'exitVenue', type: 'uint8' },
           ],
         },
       ],
@@ -310,10 +336,15 @@ export async function prepareLivePlan(
     signer: account.address,
     token: candidate.token.address,
     tokenSymbol: candidate.token.symbol,
-    v3Pool: candidate.v3Pool,
+    entryPool: candidate.entryPool,
+    exitPool: candidate.exitPool,
     routeHash,
-    v3Fee: candidate.v3Fee,
-    v2First: candidate.v2First,
+    entryVenue: candidate.entryVenue,
+    entryVenueCode: candidate.entryVenueCode,
+    entryFee: candidate.entryFee,
+    exitVenue: candidate.exitVenue,
+    exitVenueCode: candidate.exitVenueCode,
+    exitFee: candidate.exitFee,
     amountIn: candidate.amountIn,
     minimumProfit,
     simulatedGrossProfit,
@@ -513,9 +544,11 @@ export async function reconcileReceipt(
           : null
       if (
         !isAddressEqual(event.intermediateToken, plan.token) ||
-        !isAddressEqual(event.v3Pool, plan.v3Pool) ||
+        !isAddressEqual(event.entryPool, plan.entryPool) ||
+        !isAddressEqual(event.exitPool, plan.exitPool) ||
         event.routeHash !== plan.routeHash ||
-        event.v2First !== plan.v2First ||
+        event.entryVenue !== plan.entryVenueCode ||
+        event.exitVenue !== plan.exitVenueCode ||
         event.amountIn !== plan.amountIn ||
         event.amountOut !== event.amountIn + event.grossProfit ||
         balanceDelta === null ||
@@ -582,10 +615,15 @@ export async function broadcastAndReconcile(
     signer: plan.signer,
     token: plan.token,
     tokenSymbol: plan.tokenSymbol,
-    v3Pool: plan.v3Pool,
+    entryPool: plan.entryPool,
+    exitPool: plan.exitPool,
     routeHash: plan.routeHash,
-    v3Fee: plan.v3Fee,
-    v2First: plan.v2First,
+    entryVenue: plan.entryVenue,
+    entryVenueCode: plan.entryVenueCode,
+    entryFee: plan.entryFee,
+    exitVenue: plan.exitVenue,
+    exitVenueCode: plan.exitVenueCode,
+    exitFee: plan.exitFee,
     amountIn: plan.amountIn,
     minimumProfit: plan.minimumProfit,
     simulatedGrossProfit: plan.simulatedGrossProfit,

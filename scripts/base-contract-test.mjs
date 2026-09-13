@@ -30,9 +30,11 @@ const chain = defineChain({
 const WETH = getAddress('0x4200000000000000000000000000000000000006')
 const V2_FACTORY = getAddress('0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6')
 const V3_FACTORY = getAddress('0x33128a8fC17869897dcE68Ed026d694621f6FDfD')
+const PANCAKE_V3_FACTORY = getAddress('0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865')
 const TOKEN = getAddress('0x1000000000000000000000000000000000000001')
 const V2_PAIR = getAddress('0x2000000000000000000000000000000000000002')
 const V3_POOL = getAddress('0x3000000000000000000000000000000000000003')
+const PANCAKE_V3_POOL = getAddress('0x4000000000000000000000000000000000000004')
 
 function compile() {
   const sources = {
@@ -141,11 +143,14 @@ async function main() {
     const v3FactoryArtifact = runtime.MockBaseCycleV3Factory
     const v2PairArtifact = runtime.MockBaseCycleV2Pair
     const v3PoolArtifact = runtime.MockBaseCycleV3Pool
+    const pancakeV3PoolArtifact = runtime.MockBaseCyclePancakeV3Pool
     for (const address of [WETH, TOKEN]) await installCode(address, tokenArtifact)
     await installCode(V2_FACTORY, v2FactoryArtifact)
     await installCode(V3_FACTORY, v3FactoryArtifact)
+    await installCode(PANCAKE_V3_FACTORY, v3FactoryArtifact)
     await installCode(V2_PAIR, v2PairArtifact)
     await installCode(V3_POOL, v3PoolArtifact)
+    await installCode(PANCAKE_V3_POOL, pancakeV3PoolArtifact)
 
     async function write(address, abi, functionName, args) {
       const hash = await walletClient.writeContract({ address, abi, functionName, args })
@@ -156,6 +161,12 @@ async function main() {
 
     await write(V2_FACTORY, v2FactoryArtifact.abi, 'setPair', [WETH, TOKEN, V2_PAIR])
     await write(V3_FACTORY, v3FactoryArtifact.abi, 'setPool', [WETH, TOKEN, 500, V3_POOL])
+    await write(PANCAKE_V3_FACTORY, v3FactoryArtifact.abi, 'setPool', [
+      WETH,
+      TOKEN,
+      500,
+      PANCAKE_V3_POOL,
+    ])
     await write(V2_PAIR, v2PairArtifact.abi, 'configure', [
       TOKEN,
       WETH,
@@ -163,6 +174,13 @@ async function main() {
       1_000n * 10n ** 18n,
     ])
     await write(V3_POOL, v3PoolArtifact.abi, 'configure', [TOKEN, WETH, WETH, 102n, 100n])
+    await write(PANCAKE_V3_POOL, pancakeV3PoolArtifact.abi, 'configure', [
+      TOKEN,
+      WETH,
+      WETH,
+      103n,
+      100n,
+    ])
 
     const seededDeploymentHash = await walletClient.deployContract({
       abi: executorArtifact.abi,
@@ -207,7 +225,13 @@ async function main() {
     const executor = getAddress(deployment.contractAddress)
     await write(WETH, tokenArtifact.abi, 'mint', [executor, 10n * 10n ** 18n])
 
-    const v2FirstRoute = { intermediateToken: TOKEN, v3Fee: 500, v2First: true }
+    const v2FirstRoute = {
+      intermediateToken: TOKEN,
+      entryVenue: 0,
+      entryFee: 0,
+      exitVenue: 1,
+      exitFee: 500,
+    }
     const block = await publicClient.getBlock()
     const amountIn = 1n * 10n ** 18n
     const minProfit = 5n * 10n ** 15n
@@ -333,7 +357,13 @@ async function main() {
         'InvalidRoute',
         'InvalidRoute()',
         executeRequest([
-          { intermediateToken: TOKEN, v3Fee: 250, v2First: true },
+          {
+            intermediateToken: TOKEN,
+            entryVenue: 0,
+            entryFee: 0,
+            exitVenue: 1,
+            exitFee: 250,
+          },
           amountIn,
           minProfit,
           validDeadline,
@@ -349,6 +379,20 @@ async function main() {
         functionName: 'uniswapV3SwapCallback',
         args: [amountIn, -amountIn, '0x'],
       }),
+    )
+    negativeChecks.push(
+      await mustRevert(
+        'forged_pancake_v3_callback',
+        'UnauthorizedCallback',
+        'UnauthorizedCallback()',
+        {
+          account: operator,
+          address: executor,
+          abi: executorArtifact.abi,
+          functionName: 'pancakeV3SwapCallback',
+          args: [amountIn, -amountIn, '0x'],
+        },
+      ),
     )
     negativeChecks.push(
       await mustRevert('withdraw_while_armed', 'MustDisarm', 'MustDisarm()', {
@@ -395,13 +439,35 @@ async function main() {
     }
 
     await write(V3_POOL, v3PoolArtifact.abi, 'configure', [TOKEN, WETH, WETH, 98n, 100n])
-    const reverseRoute = { intermediateToken: TOKEN, v3Fee: 500, v2First: false }
+    const reverseRoute = {
+      intermediateToken: TOKEN,
+      entryVenue: 1,
+      entryFee: 500,
+      exitVenue: 0,
+      exitFee: 0,
+    }
     const reverseSimulation = await publicClient.simulateContract(
       executeRequest([reverseRoute, amountIn, minProfit, validDeadline, validThroughBlock]),
     )
     const [reverseAmountOut, reverseProfit] = reverseSimulation.result
     if (reverseAmountOut <= amountIn || reverseProfit < minProfit) {
       throw new Error('v3-first simulation did not prove a positive bounded WETH delta')
+    }
+
+    await write(V3_POOL, v3PoolArtifact.abi, 'configure', [TOKEN, WETH, WETH, 102n, 100n])
+    const crossV3Route = {
+      intermediateToken: TOKEN,
+      entryVenue: 1,
+      entryFee: 500,
+      exitVenue: 2,
+      exitFee: 500,
+    }
+    const crossV3Simulation = await publicClient.simulateContract(
+      executeRequest([crossV3Route, amountIn, minProfit, validDeadline, validThroughBlock]),
+    )
+    const [crossV3AmountOut, crossV3Profit] = crossV3Simulation.result
+    if (crossV3AmountOut <= amountIn || crossV3Profit < minProfit) {
+      throw new Error('cross-v3 simulation did not prove a positive bounded WETH delta')
     }
 
     await write(TOKEN, tokenArtifact.abi, 'configureFee', [100n])
@@ -424,6 +490,58 @@ async function main() {
     })
     if (!withdrawSimulation.request) throw new Error('disarmed withdrawal was not simulatable')
 
+    await write(TOKEN, tokenArtifact.abi, 'configureFee', [0n])
+    const replacementDeploymentHash = await walletClient.deployContract({
+      abi: executorArtifact.abi,
+      bytecode: `0x${executorArtifact.evm.bytecode.object}`,
+      args: [operator, 10n * 10n ** 18n, 1_000_000_000_000n, [TOKEN]],
+    })
+    const replacementDeployment = await publicClient.waitForTransactionReceipt({
+      hash: replacementDeploymentHash,
+    })
+    if (replacementDeployment.status !== 'success' || !replacementDeployment.contractAddress) {
+      throw new Error('replacement executor deployment failed')
+    }
+    const replacement = getAddress(replacementDeployment.contractAddress)
+    const sourceBalanceBeforeMigration = await publicClient.readContract({
+      address: WETH,
+      abi: tokenArtifact.abi,
+      functionName: 'balanceOf',
+      args: [executor],
+    })
+    await write(executor, executorArtifact.abi, 'withdraw', [
+      WETH,
+      sourceBalanceBeforeMigration,
+      replacement,
+    ])
+    await write(replacement, executorArtifact.abi, 'setArmed', [true])
+    const [sourceBalanceAfterMigration, replacementBalance, replacementArmed] = await Promise.all([
+      publicClient.readContract({
+        address: WETH,
+        abi: tokenArtifact.abi,
+        functionName: 'balanceOf',
+        args: [executor],
+      }),
+      publicClient.readContract({
+        address: WETH,
+        abi: tokenArtifact.abi,
+        functionName: 'balanceOf',
+        args: [replacement],
+      }),
+      publicClient.readContract({
+        address: replacement,
+        abi: executorArtifact.abi,
+        functionName: 'armed',
+      }),
+    ])
+    if (
+      sourceBalanceAfterMigration !== 0n ||
+      replacementBalance !== sourceBalanceBeforeMigration ||
+      replacementArmed !== true
+    ) {
+      throw new Error('replacement executor migration readback failed')
+    }
+
     const deployedBytes = executorArtifact.evm.deployedBytecode.object.length / 2
     if (deployedBytes >= 24_576)
       throw new Error(`runtime bytecode exceeds EIP-170: ${deployedBytes}`)
@@ -438,8 +556,14 @@ async function main() {
           positivePaths: [
             { direction: 'v2_to_v3', amountOut: firstAmountOut, grossProfit: firstProfit },
             { direction: 'v3_to_v2', amountOut: reverseAmountOut, grossProfit: reverseProfit },
+            {
+              direction: 'uniswap_v3_to_pancakeswap_v3',
+              amountOut: crossV3AmountOut,
+              grossProfit: crossV3Profit,
+            },
           ],
           receiptReconciled: true,
+          migrationReconciled: true,
           negativeChecks,
         },
         (_key, value) => (typeof value === 'bigint' ? value.toString() : value),

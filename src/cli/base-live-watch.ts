@@ -24,7 +24,8 @@ import {
 } from '../live/base-v2-v3/ledger.js'
 import { amountGrid, loadBaseLivePolicy } from '../live/base-v2-v3/policy.js'
 import { writeBasePublicHeartbeat } from '../live/base-v2-v3/public-heartbeat.js'
-import { quoteBaseTokenCycles, type BaseCycleQuote } from '../live/base-v2-v3/quote.js'
+import type { BaseCycleQuote } from '../live/base-v2-v3/quote.js'
+import { scanBaseTokens } from '../live/base-v2-v3/scan.js'
 import { BASE_CANARY_TOKENS } from '../live/base-v2-v3/tokens.js'
 
 function safeGateReason(error: unknown): string {
@@ -34,6 +35,7 @@ function safeGateReason(error: unknown): string {
     'candidate exceeds principal cap',
     'live execution policy is not armed',
     'executor has no deployed code',
+    'executor version is not approved',
     'signer is not the executor operator',
     'executor is disarmed',
     'candidate token is not approved on the executor',
@@ -61,10 +63,12 @@ function requiredBigint(record: LiveLedgerRecord, key: string): bigint {
   return BigInt(value)
 }
 
-function requiredBoolean(record: LiveLedgerRecord, key: string): boolean {
+function requiredNumber(record: LiveLedgerRecord, key: string): number {
   const value = record[key]
-  if (typeof value !== 'boolean') throw new Error(`ledger PLAN is missing ${key}`)
-  return value
+  if (!Number.isSafeInteger(value) || Number(value) < 0) {
+    throw new Error(`ledger PLAN is missing ${key}`)
+  }
+  return Number(value)
 }
 
 function requiredHash(record: LiveLedgerRecord, key: string): Hash {
@@ -88,9 +92,11 @@ function reconciliationPlan(
     nonce: record.nonce,
     executor: getAddress(requiredString(record, 'executor')),
     token: getAddress(requiredString(record, 'token')),
-    v3Pool: getAddress(requiredString(record, 'v3Pool')),
+    entryPool: getAddress(requiredString(record, 'entryPool')),
+    exitPool: getAddress(requiredString(record, 'exitPool')),
     routeHash: requiredHash(record, 'routeHash'),
-    v2First: requiredBoolean(record, 'v2First'),
+    entryVenueCode: requiredNumber(record, 'entryVenueCode'),
+    exitVenueCode: requiredNumber(record, 'exitVenueCode'),
     amountIn: requiredBigint(record, 'amountIn'),
     minimumProfit: requiredBigint(record, 'minimumProfit'),
     executorWethBefore: requiredBigint(record, 'executorWethBefore'),
@@ -114,16 +120,7 @@ async function writePrivateHeartbeat(
 async function scanAll(
   maximumAmountIn: bigint,
 ): Promise<Readonly<{ quotes: readonly BaseCycleQuote[]; failures: readonly string[] }>> {
-  const quotes: BaseCycleQuote[] = []
-  const failures: string[] = []
-  for (const token of BASE_CANARY_TOKENS) {
-    try {
-      quotes.push(...(await quoteBaseTokenCycles(client, token, amountGrid(maximumAmountIn))))
-    } catch (error) {
-      failures.push(`${token.symbol}:${error instanceof Error ? error.name : 'UNKNOWN_ERROR'}`)
-    }
-  }
-  return { quotes, failures }
+  return scanBaseTokens(client, BASE_CANARY_TOKENS, amountGrid(maximumAmountIn), 3)
 }
 
 async function reconcileOnStartup(records: readonly LiveLedgerRecord[]): Promise<boolean> {
@@ -243,6 +240,9 @@ try {
 
     const scan = await scanAll(policy.maximumAmountIn)
     const positives = sortPositiveGross(scan.quotes)
+    const quoteFailureCount = scan.quotes.filter(
+      (quote) => quote.disposition === 'QUOTE_FAILED',
+    ).length
     let attempted = false
     const gateReasons: string[] = []
     for (const candidate of positives) {
@@ -268,13 +268,17 @@ try {
       钱包: account.address,
       合约: policy.executorAddress,
       本轮检查路线: scan.quotes.length,
+      实盘场所: ['Uniswap V2', 'Uniswap V3', 'PancakeSwap V3'],
       毛利为正候选: positives.length,
       本轮是否广播: attempted,
       已确认盈利交易: updatedSummary.reconciledSuccessCount,
       已确认回滚交易: updatedSummary.reconciledRevertCount,
       累计净利润_ETH: formatEther(updatedSummary.cumulativeEconomicNetWei),
       累计失败Gas_ETH: formatEther(updatedSummary.cumulativeFailedGasWei),
-      RPC异常源: scan.failures,
+      RPC异常源: [
+        ...scan.failures,
+        ...(quoteFailureCount === 0 ? [] : [`EXACT_QUOTE_FAILED:${String(quoteFailureCount)}`]),
+      ],
       主要拦截原因: [...new Set(gateReasons)].slice(0, 5),
       最新观察区块: latestBlock?.toString() ?? null,
       更新时间: new Date().toISOString(),

@@ -1,4 +1,4 @@
-# Base V2/V3 实盘金丝雀运行手册
+# Base 多场所实盘金丝雀运行手册
 
 本手册只适用于 ADR 0002 的专用地址和有界 Base Canary。任何命令通过不等于链上已成交或已盈利。
 
@@ -15,6 +15,14 @@
 7. 把读回的地址写入 `BASE_EXECUTOR_ADDRESS`，再次运行 `status`，然后单独运行 `arm` 并保存 arm 回执。
 8. 只有上述读回成功后才创建 `/etc/atomic-cycle-engine/LIVE_APPROVED`，启用并启动 systemd 服务。
 9. 若同机的只读经营面板需要 Base 运行摘要，仅读取 `/run/atomic-cycle-portfolio/heartbeat.json`。该文件只有白名单字段；不得放宽 `/var/lib/atomic-cycle-engine`、签名凭据或尝试账本的权限。
+
+### 从旧 V2/V3 执行器迁移
+
+1. 旧 watcher 保持运行时，先用新 release 的 `live:admin -- deploy-next` 部署无本金、未启用的新执行器；核验版本、runtime bytecode、operator、策略边界和完整 token allowlist。
+2. 正常停止旧 watcher，确认 attempts ledger 无未决交易且 nonce fence 已释放。迁移命令会重新取得同一 fence，因此无法与 watcher 并发。
+3. 执行 `live:admin -- migrate <新执行器地址>`。命令按顺序停用旧执行器、把旧执行器全部 WETH 转入新执行器、核对源/目标余额、启用新执行器；任一步回执未知都会停止。
+4. 将 `BASE_EXECUTOR_ADDRESS` 持久化为新地址后再切换 release 并启动 watcher。读回心跳中的合约地址、三个实盘场所、PID、fence 与链上余额。
+5. 旧执行器保持停用。若新 watcher 启动失败，先停用新执行器；不得把旧代码指向新 ABI，也不得在两个执行器上同时运行同一 signer。
 
 当前目标 SWAS 主机的 Node 固定路径是 `/usr/local/bin/node`；发布前必须运行 `systemd-analyze verify`，不能假设发行版默认的 `/usr/bin/node` 存在。
 

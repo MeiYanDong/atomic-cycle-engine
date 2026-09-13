@@ -4,7 +4,7 @@ import process from 'node:process'
 import { formatEther } from 'viem'
 
 import { createBaseReadClient } from '../live/base-v2-v3/client.js'
-import { quoteBaseTokenCycles } from '../live/base-v2-v3/quote.js'
+import { scanBaseTokens } from '../live/base-v2-v3/scan.js'
 import { BASE_CANARY_TOKENS } from '../live/base-v2-v3/tokens.js'
 
 function bigintFlag(name: string, fallbackValue: bigint): bigint {
@@ -23,18 +23,9 @@ const amountGrid = [12n, 6n, 3n, 2n, 1n]
 
 const client = createBaseReadClient(process.env.BASE_READ_RPC_URL)
 
-const results = []
-const failures = []
-for (const token of BASE_CANARY_TOKENS) {
-  try {
-    results.push(...(await quoteBaseTokenCycles(client, token, amountGrid)))
-  } catch (error) {
-    failures.push({
-      symbol: token.symbol,
-      error: error instanceof Error ? error.message : String(error),
-    })
-  }
-}
+const scan = await scanBaseTokens(client, BASE_CANARY_TOKENS, amountGrid, 3)
+const results = scan.quotes
+const failures = scan.failures
 
 const positives = results
   .filter((item) => item.disposition === 'POSITIVE_GROSS')
@@ -43,21 +34,24 @@ const positives = results
     const rightProfit = right.exactGrossProfit ?? 0n
     return leftProfit === rightProfit ? 0 : leftProfit > rightProfit ? -1 : 1
   })
+const quoteFailureCount = results.filter((item) => item.disposition === 'QUOTE_FAILED').length
 
 console.log(
   JSON.stringify(
     {
-      status: failures.length === 0 ? 'COMPLETE' : 'PARTIAL',
+      status: failures.length === 0 && quoteFailureCount === 0 ? 'COMPLETE' : 'PARTIAL',
       mode: 'READ_ONLY_GROSS_SCAN',
       tokenCount: BASE_CANARY_TOKENS.length,
       amountGridEth: amountGrid.map((amount) => formatEther(amount)),
       evaluatedRoutes: results.length,
       exactQuotedRoutes: results.filter((item) => item.exactAmountOut !== null).length,
       positiveGrossRoutes: positives.length,
+      quoteFailureCount,
       topPositiveGross: positives.slice(0, 10).map((item) => ({
         symbol: item.token.symbol,
-        direction: item.v2First ? 'UNISWAP_V2_TO_V3' : 'UNISWAP_V3_TO_V2',
-        v3Fee: item.v3Fee,
+        direction: `${item.entryVenue}_TO_${item.exitVenue}`,
+        entryFee: item.entryFee,
+        exitFee: item.exitFee,
         amountInEth: formatEther(item.amountIn),
         grossProfitEth: item.exactGrossProfit === null ? null : formatEther(item.exactGrossProfit),
         blockNumber: item.blockNumber.toString(),

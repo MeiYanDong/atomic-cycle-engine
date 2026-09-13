@@ -2,7 +2,7 @@
 
 状态：`APPROVED_FOR_BOUNDED_BASE_CANARY_IMPLEMENTATION`
 
-执行模式：通用核心 `SHADOW`；Robinhood/BNB 独立场所扩展 `SHADOW`；Base V2/V3 切片 `BOUNDED_LIVE_CANARY`
+执行模式：通用核心与 Robinhood/BNB 报价层为 `DISCOVERY_ONLY`；Base Uniswap V2/V3 + PancakeSwap V3 为 `BOUNDED_MULTI_VENUE_LIVE_CANARY`
 
 实盘授权：`true`，仅限 ADR 0002 的地址、链、路线、资产 allowlist 和硬风险边界；当前是否激活以生产读回为准
 
@@ -74,9 +74,11 @@ PAIR 只是 Robinhood Chain 上的一个候选发现/平台来源。NINECAT 的�
                                       ↓
              状态缓存 → 同状态逐跳 quote → 输入量搜索
                                       ↓
-        成本模型 → 净收益门槛 → Shadow OpportunityRecord
+        成本模型 → 净收益门槛 → OpportunityRecord
                                       ↓
-         机会全集/遗漏/拦截/竞速/UNKNOWN 反事实复盘
+        Base typed plan → 模拟 → 签名 → 广播 → Effect 对账
+                                      ↓
+         机会全集/遗漏/拦截/竞速/UNKNOWN 复盘
 ```
 
 热路径只允许读取已归一化的本地状态和不可变计划。目录发现、ABI 拉取、代币元数据、历史回填、外部价格展示、通知和经营面板全部在冷路径。
@@ -89,8 +91,8 @@ PAIR 只是 Robinhood Chain 上的一个候选发现/平台来源。NINECAT 的�
 2. `StateAdapter`：把池状态映射为带 `state_reference` 的本地快照；
 3. `QuoteAdapter`：对任意精确输入量返回 exact-output、Gas 估计、证据级别和完全相同的状态承诺；
 4. `RiskAdapter`：识别 Hook、转账税、暂停、黑名单、代理升级和非标准 ERC-20 语义；
-5. `CalldataAdapter`：把路线、金额、状态边界和链上利润下限绑定为一个不可变计划；目前只在 Base Uniswap V2/V3 金丝雀实现；
-6. `EffectAdapter`：用规范链回执和余额变化给出 `FLAT / OPEN / UNKNOWN / DISPUTED`；目前只在同一金丝雀实现。
+5. `CalldataAdapter`：把路线、金额、状态边界和链上利润下限绑定为一个不可变计划；目前在 Base Uniswap V2/V3/PancakeSwap V3 金丝雀实现；
+6. `EffectAdapter`：用规范链回执、执行事件、WETH 余额变化和完整 Gas 归属给出 `RECONCILED_SUCCESS / RECONCILED_REVERT / UNKNOWN / DISPUTED`；目前在同一金丝雀实现。
 
 发现范围可以很宽，但任何没有 typed adapter、同状态 exact quote 和风险语义的协议都只能停留在观察层。
 
@@ -98,9 +100,9 @@ PAIR 只是 Robinhood Chain 上的一个候选发现/平台来源。NINECAT 的�
 
 ### Base
 
-优先级 P0：Uniswap v2/v3/v4、Aerodrome Standard/Slipstream。它们覆盖不同 AMM 曲线并拥有官方合约注册信息。Aerodrome 的 CLFactory 不能写死一个地址，必须从其 FactoryRegistry 动态校验当前批准集合。Base 官方 Flashblocks 可提供约 200ms 的 pending-state 更新，但在完成 gap/reorg/sequence 语义验证前只作为影子信号。
+优先级 P0：Uniswap v2/v3 与 PancakeSwap v3 已进入有界实盘。执行合约只接受三个枚举场所、规范 Factory 返回的池、明确 fee tier 和 allowlist token；同时实现 Uniswap/Pancake 两种受约束回调，不接受任意 target/calldata。候选通过同状态全成本门槛后直接实盘，不以 shadow 作为收益验证。
 
-优先级 P1：PancakeSwap v3。先验证 Base 专属外围合约和事件语义，再晋级 typed quote。
+下一批：Uniswap v4、Aerodrome Standard/Slipstream。Aerodrome 的 CLFactory 不能写死一个地址，必须从其 FactoryRegistry 动态校验当前批准集合。Base Flashblocks 在完成 gap/reorg/sequence 语义验证前仅能加速发现，不能替代规范回执。
 
 ### Robinhood Chain
 

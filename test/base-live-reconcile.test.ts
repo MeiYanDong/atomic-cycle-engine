@@ -25,7 +25,8 @@ import { loadBaseLivePolicy } from '../src/live/base-v2-v3/policy.js'
 
 const executor = getAddress('0x1000000000000000000000000000000000000001')
 const token = getAddress('0x2000000000000000000000000000000000000002')
-const v3Pool = getAddress('0x3000000000000000000000000000000000000003')
+const entryPool = getAddress('0x3000000000000000000000000000000000000003')
+const exitPool = getAddress('0x4000000000000000000000000000000000000004')
 const routeHash = keccak256(toHex('route'))
 const transactionHash = keccak256(toHex('transaction'))
 const blockHash = keccak256(toHex('block'))
@@ -72,9 +73,11 @@ void describe('Base live receipt economics', () => {
       nonce: 0,
       executor,
       token,
-      v3Pool,
+      entryPool,
+      exitPool,
       routeHash,
-      v2First: true,
+      entryVenueCode: 1,
+      exitVenueCode: 2,
       amountIn: 500n,
       minimumProfit: 1n,
       executorWethBefore: 1_000n,
@@ -82,7 +85,7 @@ void describe('Base live receipt economics', () => {
     const topics = encodeEventTopics({
       abi: BASE_EXECUTOR_ABI,
       eventName: 'Executed',
-      args: { routeHash, intermediateToken: token, v3Pool },
+      args: { routeHash, intermediateToken: token, entryPool },
     })
     const receipt = {
       blockHash,
@@ -94,12 +97,10 @@ void describe('Base live receipt economics', () => {
         {
           address: executor,
           topics,
-          data: encodeAbiParameters(parseAbiParameters('bool,uint256,uint256,uint256'), [
-            true,
-            500n,
-            600n,
-            100n,
-          ]),
+          data: encodeAbiParameters(
+            parseAbiParameters('address,uint8,uint8,uint256,uint256,uint256'),
+            [exitPool, 1, 2, 500n, 600n, 100n],
+          ),
         },
       ],
     } as unknown as TransactionReceipt

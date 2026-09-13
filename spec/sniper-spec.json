@@ -1,6 +1,6 @@
 {
   "spec_version": "1.4",
-  "case_id": "atomic-cycle-engine-base-v2-v3-canary",
+  "case_id": "atomic-cycle-engine-base-multivenue-canary",
   "design_status": "approved_bounded_live_canary_pending_runtime_readback",
   "evidence_level": "repository_record_plus_live_read_and_fork_observation",
   "live_execution_authorized": true,
@@ -11,7 +11,7 @@
       "min_signer_reserve_native": 0.005,
       "cumulative_failed_gas_cap_native": 0.001,
       "max_concurrent_nonce_lanes": 1,
-      "structural_bound": "Base chain 8453 only; WETH settlement; canonical Uniswap V2/V3 two-pool cycles; ten-token allowlist; no arbitrary target, calldata, approval, delegatecall, or residual intermediate position."
+      "structural_bound": "Base chain 8453 only; WETH settlement; canonical Uniswap V2, Uniswap V3 and PancakeSwap V3 two-pool cycles; ten-token allowlist; no arbitrary target, calldata, approval, delegatecall, or residual intermediate position."
     },
     "success_semantics": {
       "shadow_candidate": "Every hop and gas conversion share one state commitment and net profit remains above the proposed floor after all modeled costs.",
@@ -91,7 +91,7 @@
     "strategy": "generic_same_chain_atomic_cycle",
     "operation_mode": "live",
     "network_scope": ["base-mainnet"],
-    "route_scope": "WETH-token-WETH using canonical Uniswap V2 and V3 in either order with a ten-token capital allowlist",
+    "route_scope": "WETH-token-WETH using any two distinct canonical pools across Uniswap V2, Uniswap V3 and PancakeSwap V3 with a ten-token capital allowlist",
     "runtime_readback": "pending production deployment, arm transaction, service PID and heartbeat readback"
   },
   "decision": {
@@ -186,7 +186,7 @@
         "latency_budget_ms": 0,
         "latency_estimate": {
           "state": "UNKNOWN",
-          "reason": "The Base V2/V3 adapter is implemented, but production p95 latency and public-RPC tail behavior are not yet measured."
+          "reason": "The Base three-venue adapter is implemented, but production p95 latency and public-RPC tail behavior are not yet measured."
         },
         "voi_estimate": {
           "state": "UNKNOWN",
@@ -239,7 +239,7 @@
   },
   "execution": {
     "mode": "guarded_atomic_profit",
-    "profile": "bounded_base_v2_v3_live_canary",
+    "profile": "bounded_base_multivenue_live_canary",
     "min_out": {
       "mode": "atomic_profit_floor",
       "formula": "amountOut = amountIn + grossProfit and grossProfit >= max(contract floor, maximum L2 gas plus buffered Base L1 data fee plus buffered operator fee plus approved minimum net profit)",
@@ -247,7 +247,7 @@
     },
     "authorization": {
       "mode": "MANUAL_ARM",
-      "scope_binding": "ADR 0002 binds Base chain 8453, the dedicated signer, WETH settlement, canonical Uniswap V2/V3, token allowlist, 0.003 WETH principal, 0.005 ETH reserve, 0.001 ETH failed-gas cap and per-opportunity immutable signed plan.",
+      "scope_binding": "ADR 0002 plus ADR 0006 bind Base chain 8453, the dedicated signer, WETH settlement, canonical Uniswap V2/V3 and PancakeSwap V3, token allowlist, 0.003 WETH principal, 0.005 ETH reserve, 0.001 ETH failed-gas cap and per-opportunity immutable signed plan.",
       "expiry_policy": "Manual disarm or the earliest deadline, valid-through block, policy gate, failed-gas fuse, unknown receipt, disputed effect or reserve violation.",
       "evidence_record": "Authorization id is persisted in each append-only PLAN record and deployment scope is recorded in ADR 0002.",
       "live_effect": true
@@ -317,7 +317,7 @@
       "level": "TESTED",
       "access": "READ",
       "limitations": [
-        "Canonical Base Uniswap V2 reserve math plus V3 QuoterV2 exact quotes are tested and live-read; other protocols and 3-4 hop exact quote adapters remain shadow-only."
+        "Canonical Base Uniswap V2 reserve math plus Uniswap and PancakeSwap V3 QuoterV2 exact quotes are tested and live-read; other protocols and 3-4 hop exact quote adapters remain discovery-only."
       ]
     },
     "simulation": {
@@ -331,7 +331,7 @@
       "level": "TESTED",
       "access": "PREPARE",
       "limitations": [
-        "Only the typed BaseV2V3CycleExecutor execute route is supported; arbitrary and generic multi-hop calldata remain unsupported."
+        "Only the typed three-venue BaseV2V3CycleExecutor route is supported; arbitrary and generic multi-hop calldata remain unsupported."
       ]
     },
     "sign": {
@@ -384,7 +384,7 @@
     },
     "earliest_public_signal": "A canonical or pending pool-state change, liquidity change, or new pool event observable from a chain endpoint.",
     "earliest_inferable_signal": "A locally maintained dependency graph predicts that one changed pool may create a cycle before full-graph scanning.",
-    "earliest_safe_action": "The Base V2/V3 typed route has an exact quote, complete L2 plus L1 data fee plus operator fee bound, immutable identity, full executor simulation, signer reserve, nonce ownership and an atomic on-chain profit floor.",
+    "earliest_safe_action": "The Base typed multi-venue route has an exact quote, complete L2 plus L1 data fee plus operator fee bound, immutable identity, full executor simulation, signer reserve, nonce ownership and an atomic on-chain profit floor.",
     "controllable_edges": [
       "INFORMATION",
       "DECISION",
@@ -457,7 +457,7 @@
   "shot_policy": {
     "profiles": [
       {
-        "id": "base-v2-v3-positive-net-only",
+        "id": "base-multivenue-positive-net-only",
         "profile": "REACTIVE_GUARDED",
         "race_mode": "PROFIT",
         "reason": "Sign only after exact quote, buffered full-cost positive net, full executor simulation, fresh block boundary and all wallet/contract risk gates."
@@ -466,7 +466,7 @@
         "id": "all-other-routes",
         "profile": "NO_SHOT",
         "race_mode": "SHADOW",
-        "reason": "Protocols, tokens and route shapes outside the Base V2/V3 canary remain research-only."
+        "reason": "Protocols, tokens and route shapes outside the Base three-venue canary remain research-only."
       }
     ],
     "race_experiment": {
