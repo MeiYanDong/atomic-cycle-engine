@@ -3,7 +3,9 @@ import { dirname } from 'node:path'
 
 import { getAddress, isAddress } from 'viem'
 
-export const BASE_PUBLIC_HEARTBEAT_SCHEMA_VERSION = 1
+import { isSafePublicGateReason } from './gate-reason.js'
+
+export const BASE_PUBLIC_HEARTBEAT_SCHEMA_VERSION = 2
 export const BASE_PUBLIC_HEARTBEAT_MODE = 'READ_ONLY_SANITIZED_BASE_RUNTIME'
 const BASE_PUBLIC_HEARTBEAT_KEYS = Object.freeze([
   'schemaVersion',
@@ -14,6 +16,9 @@ const BASE_PUBLIC_HEARTBEAT_KEYS = Object.freeze([
   'executor',
   'routesChecked',
   'positiveGrossCandidates',
+  'bestGrossProfitEth',
+  'fullLiveGateCandidates',
+  'primaryBlockReason',
   'broadcastAttempted',
   'confirmedProfitTransactions',
   'confirmedRevertedTransactions',
@@ -23,7 +28,7 @@ const BASE_PUBLIC_HEARTBEAT_KEYS = Object.freeze([
 ])
 
 export interface BasePublicHeartbeat {
-  readonly schemaVersion: 1
+  readonly schemaVersion: 2
   readonly mode: typeof BASE_PUBLIC_HEARTBEAT_MODE
   readonly generatedAt: string
   readonly runtimeStatus: 'RUNNING' | 'STARTING' | 'HALTED' | 'UNKNOWN'
@@ -31,6 +36,9 @@ export interface BasePublicHeartbeat {
   readonly executor: string | null
   readonly routesChecked: number | null
   readonly positiveGrossCandidates: number | null
+  readonly bestGrossProfitEth: string | null
+  readonly fullLiveGateCandidates: number | null
+  readonly primaryBlockReason: string | null
   readonly broadcastAttempted: boolean | null
   readonly confirmedProfitTransactions: number | null
   readonly confirmedRevertedTransactions: number | null
@@ -51,6 +59,10 @@ function optionalAddress(value: unknown): string | null {
   return typeof value === 'string' && isAddress(value) ? getAddress(value) : null
 }
 
+function firstArrayItem(value: unknown): unknown {
+  return Array.isArray(value) ? (value as readonly unknown[])[0] : null
+}
+
 function runtimeStatus(value: unknown): BasePublicHeartbeat['runtimeStatus'] {
   if (value === '实盘监控中') return 'RUNNING'
   if (value === '正在启动实盘监控') return 'STARTING'
@@ -66,6 +78,8 @@ export function projectBasePublicHeartbeat(
   if (typeof generatedAt !== 'string' || !Number.isFinite(Date.parse(generatedAt))) {
     throw new Error('private heartbeat has no valid update time')
   }
+  const privateReasons = heartbeat['主要拦截原因']
+  const primaryReason = firstArrayItem(privateReasons)
   const projected: BasePublicHeartbeat = {
     schemaVersion: BASE_PUBLIC_HEARTBEAT_SCHEMA_VERSION,
     mode: BASE_PUBLIC_HEARTBEAT_MODE,
@@ -75,6 +89,9 @@ export function projectBasePublicHeartbeat(
     executor: optionalAddress(heartbeat['合约']),
     routesChecked: optionalNonNegativeInteger(heartbeat['本轮检查路线']),
     positiveGrossCandidates: optionalNonNegativeInteger(heartbeat['毛利为正候选']),
+    bestGrossProfitEth: optionalDecimal(heartbeat['本轮最高毛利_ETH']),
+    fullLiveGateCandidates: optionalNonNegativeInteger(heartbeat['达到完整实盘门槛候选']),
+    primaryBlockReason: isSafePublicGateReason(primaryReason) ? primaryReason : null,
     broadcastAttempted:
       typeof heartbeat['本轮是否广播'] === 'boolean' ? heartbeat['本轮是否广播'] : null,
     confirmedProfitTransactions: optionalNonNegativeInteger(heartbeat['已确认盈利交易']),
@@ -119,12 +136,16 @@ export function assertBasePublicHeartbeat(value: unknown): BasePublicHeartbeat {
     ![
       heartbeat.routesChecked,
       heartbeat.positiveGrossCandidates,
+      heartbeat.fullLiveGateCandidates,
       heartbeat.confirmedProfitTransactions,
       heartbeat.confirmedRevertedTransactions,
     ].every((count) => count === null || (Number.isSafeInteger(count) && Number(count) >= 0)) ||
     !(heartbeat.broadcastAttempted === null || typeof heartbeat.broadcastAttempted === 'boolean') ||
-    ![heartbeat.verifiedNetEth, heartbeat.failedGasEth].every(
+    ![heartbeat.bestGrossProfitEth, heartbeat.verifiedNetEth, heartbeat.failedGasEth].every(
       (amount) => amount === null || (typeof amount === 'string' && /^\d+(?:\.\d+)?$/.test(amount)),
+    ) ||
+    !(
+      heartbeat.primaryBlockReason === null || isSafePublicGateReason(heartbeat.primaryBlockReason)
     ) ||
     !(
       heartbeat.latestObservedBlock === null ||

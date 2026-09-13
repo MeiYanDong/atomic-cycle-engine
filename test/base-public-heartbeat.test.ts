@@ -20,6 +20,8 @@ function privateHeartbeat(): Readonly<Record<string, unknown>> {
     合约: executor,
     本轮检查路线: 350,
     毛利为正候选: 2,
+    本轮最高毛利_ETH: '0.0000012',
+    达到完整实盘门槛候选: 0,
     本轮是否广播: false,
     已确认盈利交易: 1,
     已确认回滚交易: 0,
@@ -28,7 +30,7 @@ function privateHeartbeat(): Readonly<Record<string, unknown>> {
     最新观察区块: '12345678',
     更新时间: '2026-09-11T15:00:00.000Z',
     RPC异常源: ['provider details stay private'],
-    主要拦截原因: ['full executor simulation missed profit floor'],
+    主要拦截原因: ['完整合约模拟未达到利润底线'],
   }
 }
 
@@ -39,6 +41,9 @@ void test('projects only the allowlisted public Base runtime fields', () => {
   assert.equal(projected.operator, operator)
   assert.equal(projected.executor, executor)
   assert.equal(projected.routesChecked, 350)
+  assert.equal(projected.bestGrossProfitEth, '0.0000012')
+  assert.equal(projected.fullLiveGateCandidates, 0)
+  assert.equal(projected.primaryBlockReason, '完整合约模拟未达到利润底线')
   assert.equal(projected.confirmedProfitTransactions, 1)
   assert.equal(projected.verifiedNetEth, '0.0004')
   assert.equal('RPC异常源' in projected, false)

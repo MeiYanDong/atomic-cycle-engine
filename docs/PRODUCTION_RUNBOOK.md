@@ -18,8 +18,8 @@
 
 ### 从旧 V2/V3 执行器迁移
 
-1. 旧 watcher 保持运行时，先用新 release 的 `live:admin -- deploy-next` 部署无本金、未启用的新执行器；核验版本、runtime bytecode、operator、策略边界和完整 token allowlist。
-2. 正常停止旧 watcher，确认 attempts ledger 无未决交易且 nonce fence 已释放。迁移命令会重新取得同一 fence，因此无法与 watcher 并发。
+1. 正常停止旧 watcher，确认 attempts ledger 无未决交易且 nonce fence 已释放。`deploy-next` 和迁移都使用同一 signer nonce，不能与 watcher 并发。
+2. 用新 release 的 `live:admin -- deploy-next` 部署无本金、未启用的新执行器；核验版本、runtime bytecode、operator、策略边界和完整 token allowlist。
 3. 执行 `live:admin -- migrate <新执行器地址>`。命令按顺序停用旧执行器、把旧执行器全部 WETH 转入新执行器、核对源/目标余额、启用新执行器；任一步回执未知都会停止。
 4. 将 `BASE_EXECUTOR_ADDRESS` 持久化为新地址后再切换 release 并启动 watcher。读回心跳中的合约地址、三个实盘场所、PID、fence 与链上余额。
 5. 旧执行器保持停用。若新 watcher 启动失败，先停用新执行器；不得把旧代码指向新 ABI，也不得在两个执行器上同时运行同一 signer。
@@ -76,7 +76,7 @@ cat /run/atomic-cycle-portfolio/heartbeat.json
 
 状态必须同时满足：service 为 `active`、MainPID 非零、最近 heartbeat 为“实盘监控中”、钱包和合约与链上读回一致。没有 `EFFECT/RECONCILED_SUCCESS` 时，收益仍为零，不得把“发现毛利候选”算成收益。
 
-公开心跳只是同机、组可读的只读投影；它不包含 RPC、私钥、raw transaction、路线或错误原文，也不替代私有账本和链上回执对账。
+公开心跳 schema v2 只是同机、组可读的只读投影；它区分“毛利为正”和“通过完整实盘门槛”，并只发布白名单化的主要拦截原因。它不包含 RPC、私钥、raw transaction、完整路线或错误原文，也不替代私有账本和链上回执对账。
 
 ## 停止与恢复
 

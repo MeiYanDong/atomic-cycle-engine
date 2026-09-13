@@ -193,6 +193,12 @@ export async function prepareLivePlan(
   ) {
     throw new Error('candidate is not a positive exact quote')
   }
+  if (candidate.exactGrossProfit < policy.minimumContractProfit) {
+    throw new Error('positive gross quote is below the contract profit floor')
+  }
+  if (candidate.exactGrossProfit <= policy.minimumNetProfit) {
+    throw new Error('positive gross quote cannot clear the net profit floor before gas')
+  }
   if (candidate.amountIn > policy.maximumAmountIn)
     throw new Error('candidate exceeds principal cap')
   const state = await validateExecutorState(

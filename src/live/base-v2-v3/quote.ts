@@ -304,6 +304,151 @@ function quoteBase(
   }
 }
 
+async function quoteCycleAtBlock(
+  client: BaseReadClient,
+  blockNumber: bigint,
+  blockHash: Hash,
+  token: BaseCanaryToken,
+  entry: BasePoolState,
+  exit: BasePoolState,
+  amountIn: bigint,
+): Promise<BaseCycleQuote> {
+  const approximateIntermediate = spotLeg(entry, BASE_WETH, amountIn)
+  const approximateAmountOut = spotLeg(exit, token.address, approximateIntermediate)
+  const base = quoteBase(blockNumber, blockHash, token, entry, exit, amountIn, approximateAmountOut)
+  if (approximateAmountOut <= amountIn) {
+    return {
+      ...base,
+      exactAmountOut: null,
+      exactGrossProfit: null,
+      quoteGas: null,
+      disposition: 'SPOT_NEGATIVE',
+      error: null,
+    }
+  }
+
+  try {
+    const [intermediate, entryQuoteGas] = await exactLeg(
+      client,
+      entry,
+      BASE_WETH,
+      token.address,
+      amountIn,
+      blockNumber,
+    )
+    const [exactAmountOut, exitQuoteGas] = await exactLeg(
+      client,
+      exit,
+      token.address,
+      BASE_WETH,
+      intermediate,
+      blockNumber,
+    )
+    const positive = exactAmountOut > amountIn
+    return {
+      ...base,
+      exactAmountOut,
+      exactGrossProfit: positive ? exactAmountOut - amountIn : 0n,
+      quoteGas: entryQuoteGas + exitQuoteGas,
+      disposition: positive ? 'POSITIVE_GROSS' : 'EXACT_NEGATIVE',
+      error: null,
+    }
+  } catch (error) {
+    return {
+      ...base,
+      exactAmountOut: null,
+      exactGrossProfit: null,
+      quoteGas: null,
+      disposition: 'QUOTE_FAILED',
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+async function readCanonicalIdentity(
+  client: BaseReadClient,
+  token: Address,
+  venue: BaseVenueId,
+  fee: number,
+  blockNumber: bigint,
+): Promise<Readonly<{ venue: BaseVenueId; pool: Address; fee: number }>> {
+  if (venue === 'UNISWAP_V2') {
+    if (fee !== 0) throw new Error('invalid Uniswap V2 fee')
+    const pool = getAddress(
+      await client.readContract({
+        address: BASE_UNISWAP_V2_FACTORY,
+        abi: UNISWAP_V2_FACTORY_ABI,
+        functionName: 'getPair',
+        args: [BASE_WETH, token],
+        blockNumber,
+      }),
+    )
+    if (isAddressEqual(pool, zeroAddress)) throw new Error('canonical pool disappeared')
+    return { venue, pool, fee }
+  }
+
+  const definition = concentratedDefinition(venue)
+  if (!definition.fees.includes(fee)) throw new Error('invalid concentrated-pool fee')
+  const pool = getAddress(
+    await client.readContract({
+      address: definition.factory,
+      abi: UNISWAP_V3_FACTORY_ABI,
+      functionName: 'getPool',
+      args: [BASE_WETH, token, fee],
+      blockNumber,
+    }),
+  )
+  if (isAddressEqual(pool, zeroAddress)) throw new Error('canonical pool disappeared')
+  return { venue, pool, fee }
+}
+
+/**
+ * Re-prices one already discovered route against one fresh canonical block.
+ * This keeps the signing path off a several-second-old full-market snapshot.
+ */
+export async function requoteBaseCycle(
+  client: BaseReadClient,
+  candidate: BaseCycleQuote,
+): Promise<BaseCycleQuote> {
+  const block = await client.getBlock({ blockTag: 'latest' })
+  const [entryIdentity, exitIdentity] = await Promise.all([
+    readCanonicalIdentity(
+      client,
+      candidate.token.address,
+      candidate.entryVenue,
+      candidate.entryFee,
+      block.number,
+    ),
+    readCanonicalIdentity(
+      client,
+      candidate.token.address,
+      candidate.exitVenue,
+      candidate.exitFee,
+      block.number,
+    ),
+  ])
+  if (
+    !isAddressEqual(entryIdentity.pool, candidate.entryPool) ||
+    !isAddressEqual(exitIdentity.pool, candidate.exitPool)
+  ) {
+    throw new Error('canonical route changed during re-quote')
+  }
+  const [entry, exit] = await Promise.all([
+    readPoolState(client, entryIdentity, block.number),
+    readPoolState(client, exitIdentity, block.number),
+  ])
+  if (entry === null || exit === null) throw new Error('canonical route has no active liquidity')
+  return quoteCycleAtBlock(
+    client,
+    block.number,
+    block.hash,
+    candidate.token,
+    entry,
+    exit,
+    candidate.amountIn,
+  )
+}
+
 export async function quoteBaseTokenCycles(
   client: BaseReadClient,
   token: BaseCanaryToken,
@@ -323,67 +468,17 @@ export async function quoteBaseTokenCycles(
       .map(async (exit): Promise<readonly BaseCycleQuote[]> => {
         const quotes: BaseCycleQuote[] = []
         for (const amountIn of orderedAmounts) {
-          const approximateIntermediate = spotLeg(entry, BASE_WETH, amountIn)
-          const approximateAmountOut = spotLeg(exit, token.address, approximateIntermediate)
-          const base = quoteBase(
+          const quote = await quoteCycleAtBlock(
+            client,
             block.number,
             block.hash,
             token,
             entry,
             exit,
             amountIn,
-            approximateAmountOut,
           )
-          if (approximateAmountOut <= amountIn) {
-            quotes.push({
-              ...base,
-              exactAmountOut: null,
-              exactGrossProfit: null,
-              quoteGas: null,
-              disposition: 'SPOT_NEGATIVE',
-              error: null,
-            })
-            break
-          }
-
-          try {
-            const [intermediate, entryQuoteGas] = await exactLeg(
-              client,
-              entry,
-              BASE_WETH,
-              token.address,
-              amountIn,
-              block.number,
-            )
-            const [exactAmountOut, exitQuoteGas] = await exactLeg(
-              client,
-              exit,
-              token.address,
-              BASE_WETH,
-              intermediate,
-              block.number,
-            )
-            const positive = exactAmountOut > amountIn
-            quotes.push({
-              ...base,
-              exactAmountOut,
-              exactGrossProfit: positive ? exactAmountOut - amountIn : 0n,
-              quoteGas: entryQuoteGas + exitQuoteGas,
-              disposition: positive ? 'POSITIVE_GROSS' : 'EXACT_NEGATIVE',
-              error: null,
-            })
-            if (!positive) break
-          } catch (error) {
-            quotes.push({
-              ...base,
-              exactAmountOut: null,
-              exactGrossProfit: null,
-              quoteGas: null,
-              disposition: 'QUOTE_FAILED',
-              error: error instanceof Error ? error.message : String(error),
-            })
-            break
-          }
+          quotes.push(quote)
+          if (quote.disposition !== 'POSITIVE_GROSS') break
         }
         return quotes
       }),
