@@ -8,6 +8,7 @@ void describe('Base live canary policy', () => {
     const policy = loadBaseLivePolicy({})
     assert.equal(policy.liveArm, false)
     assert.equal(policy.maximumAmountIn, 3_000_000_000_000_000n)
+    assert.equal(policy.minimumContractProfit, 1n)
     assert.equal(policy.minimumNetProfit, 1n)
     assert.equal(policy.reserveFloor, 5_000_000_000_000_000n)
     assert.equal(policy.cumulativeFailedGasCap, 1_000_000_000_000_000n)
@@ -15,6 +16,14 @@ void describe('Base live canary policy', () => {
   })
 
   void it('keeps the net floor positive while letting conservative gas set the economic threshold', () => {
+    assert.throws(
+      () => loadBaseLivePolicy({ BASE_MIN_CONTRACT_PROFIT_WEI: '0' }),
+      /must be positive/,
+    )
+    assert.equal(
+      loadBaseLivePolicy({ BASE_MIN_CONTRACT_PROFIT_WEI: '7' }).minimumContractProfit,
+      7n,
+    )
     assert.throws(() => loadBaseLivePolicy({ BASE_MIN_NET_PROFIT_WEI: '0' }), /must be positive/)
     assert.equal(loadBaseLivePolicy({ BASE_MIN_NET_PROFIT_WEI: '7' }).minimumNetProfit, 7n)
   })

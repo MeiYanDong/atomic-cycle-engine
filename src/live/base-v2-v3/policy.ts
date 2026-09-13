@@ -81,11 +81,7 @@ export function loadBaseLivePolicy(environment: Environment): BaseLivePolicy {
         : (environment.BASE_LIVE_AUTHORIZATION_ID?.trim() ?? null),
     executorAddress: optionalAddress(environment.BASE_EXECUTOR_ADDRESS),
     maximumAmountIn: positiveBigint(environment, 'BASE_MAX_AMOUNT_IN_WEI', 3_000_000_000_000_000n),
-    minimumContractProfit: positiveBigint(
-      environment,
-      'BASE_MIN_CONTRACT_PROFIT_WEI',
-      1_000_000_000_000n,
-    ),
+    minimumContractProfit: positiveBigint(environment, 'BASE_MIN_CONTRACT_PROFIT_WEI', 1n),
     minimumNetProfit: positiveBigint(environment, 'BASE_MIN_NET_PROFIT_WEI', 1n),
     reserveFloor: positiveBigint(environment, 'BASE_ETH_RESERVE_FLOOR_WEI', 5_000_000_000_000_000n),
     cumulativeFailedGasCap: positiveBigint(

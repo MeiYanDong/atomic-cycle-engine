@@ -39,7 +39,7 @@ npm run canary:scan -- --max-amount-wei 3000000000000000
 npm run test:fork
 ```
 
-官方公共 RPC 不代表生产 SLA。窗口扫描只证明指定区块范围内的发现覆盖，不证明全历史完整、存在套利机会或能够成交。`canary:scan` 的正毛利候选也不等于可成交净利润；实盘 watcher 会先排除连合约/净利润底线都达不到的尘埃价差，对剩余候选按最新规范区块定向重报价，然后才进入完整 Gas、余额、模拟和广播门禁。只有链后 `economic_reconciled` Effect 才能计为收益。Base 的 Flashblocks 端点已登记，但 pending-state 适配器尚未实现。
+官方公共 RPC 不代表生产 SLA。窗口扫描只证明指定区块范围内的发现覆盖，不证明全历史完整、存在套利机会或能够成交。`canary:scan` 的正毛利候选也不等于可成交净利润；实盘 watcher 会让所有正毛利候选进入最新规范区块定向重报价，再执行完整 Gas、余额、模拟和广播门禁。执行合约毛利底线和额外净利底线都只有 1 wei，真正的动态门槛由 L2 Gas、L1 data fee、operator fee、保守倍率和报价折扣共同决定。只有链后 `economic_reconciled` Effect 才能计为收益。Base 的 Flashblocks 端点已登记，但 pending-state 适配器尚未实现。
 
 `shadow:cross-venue` 只保留为 Robinhood/BNB 的候选发现器，不再被当成交易验证或收益证据。Base 候选一旦通过同状态全成本门槛，会直接进入完整合约模拟、签名、广播和 Effect 对账；V4、Aerodrome、3–4 跳与事件驱动搜索仍按适配器晋级规则建设。
 
