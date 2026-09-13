@@ -209,7 +209,7 @@ WETH → token（Uniswap V3）→ WETH（Uniswap V2）
 - 单笔 `amountIn <= 0.003 WETH`；
 - Signer 交易后保留 `>= 0.005 ETH`；
 - 累计规范回执确认的失败 Gas 达 `0.001 ETH`，停止新增交易；
-- 每笔保守报价毛利必须覆盖最大 L2 Gas、放大后的 Base L1 data fee、operator fee 和 `0.000005 WETH` 最低净利润；
+- 每笔保守报价毛利必须覆盖最大 L2 Gas、放大后的 Base L1 data fee、operator fee，并在这些成本后至少保留 `1 wei` 正净利润；真正的经济门槛由费用放大和报价安全折扣决定，不再叠加固定收益额度；
 - 全市场发现后的候选不得直接沿用旧快照签名；只有先达到静态利润底线、再按最新规范区块对同一路线和金额定向重报价，才进入 Gas 估算与完整执行器模拟；
 - quote 利润按 80% 安全折扣，Gas limit 按 120%、L1 fee 按 150%、operator fee 按 120% 计算；
 - 机会最多有效 2 个 Base 区块且 deadline 20 秒；

@@ -86,7 +86,7 @@ export function loadBaseLivePolicy(environment: Environment): BaseLivePolicy {
       'BASE_MIN_CONTRACT_PROFIT_WEI',
       1_000_000_000_000n,
     ),
-    minimumNetProfit: positiveBigint(environment, 'BASE_MIN_NET_PROFIT_WEI', 5_000_000_000_000n),
+    minimumNetProfit: positiveBigint(environment, 'BASE_MIN_NET_PROFIT_WEI', 1n),
     reserveFloor: positiveBigint(environment, 'BASE_ETH_RESERVE_FLOOR_WEI', 5_000_000_000_000_000n),
     cumulativeFailedGasCap: positiveBigint(
       environment,

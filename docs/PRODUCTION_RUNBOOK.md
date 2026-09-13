@@ -38,7 +38,7 @@
 1. 读回 live/shadow 的 PID、release、未决尝试账本和当前 fence；确认旧 release 仍可回滚；
 2. 暂停只读看板及 `manga-business-report.timer/path/service`，不停止 Robinhood 或 Base 实盘执行器；
 3. 确认 `MemAvailable` 至少 800 MiB，否则终止发布，不用 OOM 试探主机；
-4. 对固定 commit 构建，使用 `NODE_OPTIONS=--max-old-space-size=512`，成功后再原子切换 release；
+4. 对固定 commit 构建，使用 `NODE_OPTIONS=--max-old-space-size=512`；release 顶层目录必须为 `root:root 0755`，并在切换前以 `atomic-cycle` 用户验证可进入且可读取启动文件；成功后再原子切换 release；
 5. 先重启并读回无签名 Shadow，再正常停止 Base live、确认旧 fence 已释放和无未决交易，然后启动新 live；
 6. 新 live 必须读回 schema v2 fence，且 PID、boot ID、process start ticks 与 `/proc` 一致；
 7. 恢复看板和报表触发器，等待目录完整、持久化一致和至少两个新的 Shadow 周期，再接受发布。
