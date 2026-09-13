@@ -19,6 +19,43 @@ const V3_FACTORY_ABI = parseAbi([
   'function getPool(address tokenA, address tokenB, uint24 fee) view returns (address pool)',
 ])
 
+export const BALANCER_V3_BATCH_ROUTER_ABI = [
+  {
+    type: 'function',
+    name: 'querySwapExactIn',
+    stateMutability: 'nonpayable',
+    inputs: [
+      {
+        name: 'paths',
+        type: 'tuple[]',
+        components: [
+          { name: 'tokenIn', type: 'address' },
+          {
+            name: 'steps',
+            type: 'tuple[]',
+            components: [
+              { name: 'pool', type: 'address' },
+              { name: 'tokenOut', type: 'address' },
+              { name: 'isBuffer', type: 'bool' },
+            ],
+          },
+          { name: 'exactAmountIn', type: 'uint256' },
+          { name: 'minAmountOut', type: 'uint256' },
+        ],
+      },
+      { name: 'sender', type: 'address' },
+      { name: 'userData', type: 'bytes' },
+    ],
+    outputs: [
+      { name: 'pathAmountsOut', type: 'uint256[]' },
+      { name: 'tokensOut', type: 'address[]' },
+      { name: 'amountsOut', type: 'uint256[]' },
+    ],
+  },
+] as const
+
+const NEUTRAL_QUERY_SENDER = '0x0000000000000000000000000000000000000001' as const
+
 const QUOTER_V2_ABI = [
   {
     type: 'function',
@@ -120,6 +157,38 @@ async function quoteV2(
     data: encoded,
   })
   const amountOut = amounts.at(-1)
+  return amountOut === undefined || amountOut <= 0n ? null : { amountOut, feeTier: null }
+}
+
+async function quoteBalancerV3Pool(
+  client: ReadOnlyRpcClient,
+  gate: RpcConcurrencyGate,
+  input: DirectQuoteInput,
+): Promise<DirectQuoteResult | null> {
+  if (input.venue.kind !== 'BALANCER_V3_BATCH_ROUTER') return null
+  const data = encodeFunctionData({
+    abi: BALANCER_V3_BATCH_ROUTER_ABI,
+    functionName: 'querySwapExactIn',
+    args: [
+      [
+        {
+          tokenIn: input.tokenIn.address,
+          steps: [{ pool: input.venue.pool, tokenOut: input.tokenOut.address, isBuffer: false }],
+          exactAmountIn: input.amountIn,
+          minAmountOut: 0n,
+        },
+      ],
+      NEUTRAL_QUERY_SENDER,
+      '0x',
+    ],
+  })
+  const encoded = await rawCall(client, gate, input.venue.router, data, input.blockNumber)
+  const [pathAmountsOut] = decodeFunctionResult({
+    abi: BALANCER_V3_BATCH_ROUTER_ABI,
+    functionName: 'querySwapExactIn',
+    data: encoded,
+  })
+  const amountOut = pathAmountsOut[0]
   return amountOut === undefined || amountOut <= 0n ? null : { amountOut, feeTier: null }
 }
 
@@ -229,10 +298,12 @@ export function createRpcDirectQuote(client: ReadOnlyRpcClient): RpcDirectQuoteA
     if (cached !== undefined) return cached
 
     const pending = (async (): Promise<DirectQuoteResult | null> => {
-      if (input.venue.kind === 'V2_ROUTER') {
+      if (input.venue.kind === 'V2_ROUTER' || input.venue.kind === 'BALANCER_V3_BATCH_ROUTER') {
         rpcCalls += 1
         try {
-          return await quoteV2(client, gate, input)
+          return input.venue.kind === 'V2_ROUTER'
+            ? await quoteV2(client, gate, input)
+            : await quoteBalancerV3Pool(client, gate, input)
         } catch (error) {
           if (!isUnavailableRoute(error)) failedRpcCalls += 1
           return null

@@ -113,6 +113,18 @@
 - 主网分叉验证覆盖 Uniswap V2↔V3 与 Uniswap V3↔PancakeSwap V3 两种方向；
 - 公共 RPC 完整扫描 10 个 allowlist token 的目标耗时低于 10 秒，失败必须显式降级而不是当成零机会。
 
+### S1A-06 Robinhood Earn/DEX 与 BNB 流动路线簿
+
+验收：
+
+- Robinhood 同时覆盖 36 条 DEX 两跳、4 条 reviewed Earn 和 40 条单腿 DEX 替换路线；
+- Earn pool、Vault 与 BatchRouter 身份独立注册，池级单跳通过固定块 `querySwapExactIn` 报价；
+- BNB 目标包含 USDT、USDC、FDUSD、CAKE、ETH、BTCB，并覆盖 8 条 curated 三跳资产路径；
+- 三跳每一腿从四个 DEX 选择最佳完整报价，且不得重复同一可变流动性来源；
+- 金额按五档几何阶梯逐档探测，任一档没有毛利即停止；探测档位不得被解释为实盘本金上限；
+- 公开快照显示路线类型、跳数、执行边界以及毛利为正但 Gas 后为负的最佳证据；
+- 新路线不加载 signer，不广播，也不因另一个 keeper 存在而宣称本服务可执行。
+
 ### S1-01 Base P0 协议池普查
 
 验收：官方 factory/manager 事件可断点回填；每条记录含块哈希和日志索引；重组可撤销；gap 可定位与回填。

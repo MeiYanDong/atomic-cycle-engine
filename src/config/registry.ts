@@ -87,6 +87,7 @@ const UNISWAP_V3_BNB_SOURCE =
   'https://developers.uniswap.org/docs/protocols/v3/deployments/v3-bnb-deployments'
 const UNISWAP_V3_ROBINHOOD_SOURCE =
   'https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments'
+const EARNONHOOD_SOURCE = 'https://earnonhood.com/docs'
 
 export const CONTRACTS: readonly ContractDefinition[] = [
   {
@@ -424,6 +425,66 @@ export const CONTRACTS: readonly ContractDefinition[] = [
     support: 'PLANNED_ADAPTER',
     evidenceLevel: 'configured',
     evidenceUrl: PANCAKE_V3_SOURCE,
+  },
+  {
+    id: 'robinhood.earn.vault',
+    network: 'robinhood',
+    protocolId: 'BALANCER_V3',
+    venueId: 'EARN_BALANCER_V3',
+    platformId: 'EARNONHOOD',
+    role: 'VAULT',
+    address: address('0x28082618Ba2073E602230188E4F4C46e9b2169EB'),
+    support: 'PLANNED_ADAPTER',
+    evidenceLevel: 'live_observed',
+    evidenceUrl: EARNONHOOD_SOURCE,
+  },
+  {
+    id: 'robinhood.earn.batch-router',
+    network: 'robinhood',
+    protocolId: 'BALANCER_V3',
+    venueId: 'EARN_BALANCER_V3',
+    platformId: 'EARNONHOOD',
+    role: 'QUOTER_AND_ROUTER',
+    address: address('0x2d6DD5A990a643A8B11CD06554FBC290a1a82bA6'),
+    support: 'PLANNED_ADAPTER',
+    evidenceLevel: 'live_observed',
+    evidenceUrl: EARNONHOOD_SOURCE,
+  },
+  {
+    id: 'robinhood.earn.hood-ecosystem-pool',
+    network: 'robinhood',
+    protocolId: 'BALANCER_V3',
+    venueId: 'EARN_BALANCER_V3',
+    platformId: 'EARNONHOOD',
+    role: 'POOL',
+    address: address('0x4188656eAFdD7634d35Ca3f98ddfBf4b403A41fA'),
+    support: 'PLANNED_ADAPTER',
+    evidenceLevel: 'live_observed',
+    evidenceUrl: EARNONHOOD_SOURCE,
+  },
+  {
+    id: 'robinhood.earn.stock-memes-pool',
+    network: 'robinhood',
+    protocolId: 'BALANCER_V3',
+    venueId: 'EARN_BALANCER_V3',
+    platformId: 'EARNONHOOD',
+    role: 'POOL',
+    address: address('0x00e7B76d0C0F0370C28A07aA9d9fDF92736238A6'),
+    support: 'PLANNED_ADAPTER',
+    evidenceLevel: 'live_observed',
+    evidenceUrl: EARNONHOOD_SOURCE,
+  },
+  {
+    id: 'robinhood.earn.long-eco-pool',
+    network: 'robinhood',
+    protocolId: 'BALANCER_V3',
+    venueId: 'EARN_BALANCER_V3',
+    platformId: 'EARNONHOOD',
+    role: 'POOL',
+    address: address('0xcDe242535A75F8ccB5D4b14686e312c196B28855'),
+    support: 'PLANNED_ADAPTER',
+    evidenceLevel: 'live_observed',
+    evidenceUrl: EARNONHOOD_SOURCE,
   },
   {
     id: 'robinhood.long.launcher',
