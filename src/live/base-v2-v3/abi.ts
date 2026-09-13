@@ -69,6 +69,43 @@ export const UNISWAP_V3_QUOTER_V2_ABI = [
 ] as const
 
 export const BASE_EXECUTOR_ABI = [
+  { type: 'error', name: 'NotOperator', inputs: [] },
+  { type: 'error', name: 'WrongChain', inputs: [] },
+  { type: 'error', name: 'NotArmed', inputs: [] },
+  { type: 'error', name: 'MustDisarm', inputs: [] },
+  { type: 'error', name: 'Reentered', inputs: [] },
+  { type: 'error', name: 'Expired', inputs: [] },
+  { type: 'error', name: 'StaleBlock', inputs: [] },
+  { type: 'error', name: 'InvalidConfiguration', inputs: [] },
+  { type: 'error', name: 'InvalidRoute', inputs: [] },
+  { type: 'error', name: 'TokenNotApproved', inputs: [] },
+  { type: 'error', name: 'DuplicateToken', inputs: [] },
+  { type: 'error', name: 'TooManyTokens', inputs: [] },
+  { type: 'error', name: 'InvalidAmount', inputs: [] },
+  { type: 'error', name: 'ProfitFloorTooLow', inputs: [] },
+  { type: 'error', name: 'InsufficientPrincipal', inputs: [] },
+  { type: 'error', name: 'MissingCanonicalPool', inputs: [] },
+  { type: 'error', name: 'InvalidPoolIdentity', inputs: [] },
+  { type: 'error', name: 'InvalidSwapDelta', inputs: [] },
+  { type: 'error', name: 'NonStandardTokenBehavior', inputs: [] },
+  { type: 'error', name: 'UnauthorizedCallback', inputs: [] },
+  {
+    type: 'error',
+    name: 'ResidualExposure',
+    inputs: [
+      { name: 'beforeBalance', type: 'uint256' },
+      { name: 'afterBalance', type: 'uint256' },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'ProfitTooLow',
+    inputs: [
+      { name: 'actual', type: 'uint256' },
+      { name: 'required', type: 'uint256' },
+    ],
+  },
+  { type: 'error', name: 'TokenCallFailed', inputs: [] },
   {
     type: 'event',
     name: 'Executed',

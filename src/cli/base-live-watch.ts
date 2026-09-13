@@ -22,34 +22,12 @@ import {
   summarizeLiveLedger,
   type LiveLedgerRecord,
 } from '../live/base-v2-v3/ledger.js'
+import { safeGateReason } from '../live/base-v2-v3/gate-reason.js'
 import { amountGrid, loadBaseLivePolicy } from '../live/base-v2-v3/policy.js'
 import { writeBasePublicHeartbeat } from '../live/base-v2-v3/public-heartbeat.js'
-import type { BaseCycleQuote } from '../live/base-v2-v3/quote.js'
+import { requoteBaseCycle, type BaseCycleQuote } from '../live/base-v2-v3/quote.js'
 import { scanBaseTokens } from '../live/base-v2-v3/scan.js'
 import { BASE_CANARY_TOKENS } from '../live/base-v2-v3/tokens.js'
-
-function safeGateReason(error: unknown): string {
-  if (!(error instanceof Error)) return 'UNKNOWN_ERROR'
-  const known = [
-    'candidate is not a positive exact quote',
-    'candidate exceeds principal cap',
-    'live execution policy is not armed',
-    'executor has no deployed code',
-    'executor version is not approved',
-    'signer is not the executor operator',
-    'executor is disarmed',
-    'candidate token is not approved on the executor',
-    'on-chain and runtime principal caps differ',
-    'on-chain and runtime contract profit floors differ',
-    'executor principal is insufficient',
-    'quote block commitment mismatch',
-    'current Base max fee exceeds the live policy cap',
-    'positive gross quote does not clear gas, net profit, and quote safety gates',
-    'signer ETH would fall below the reserve floor',
-    'full executor simulation missed profit floor',
-  ]
-  return known.includes(error.message) ? error.message : error.name
-}
 
 function requiredString(record: LiveLedgerRecord, key: string): string {
   const value = record[key]
@@ -200,6 +178,54 @@ async function publishHeartbeat(heartbeat: Readonly<Record<string, unknown>>): P
 }
 const ledgerPath = path.join(policy.stateDirectory, 'attempts.jsonl')
 const observationPath = path.join(policy.stateDirectory, 'observations.jsonl')
+const rejectionEvidence = new Map<string, Readonly<{ reason: string; recordedAtMs: number }>>()
+const REJECTION_EVIDENCE_INTERVAL_MS = 300_000
+
+async function recordCandidateRejection(
+  candidate: BaseCycleQuote,
+  reason: string,
+  refreshedCandidate?: BaseCycleQuote,
+): Promise<void> {
+  const key = [
+    candidate.token.address,
+    candidate.entryVenue,
+    candidate.entryFee,
+    candidate.exitVenue,
+    candidate.exitFee,
+    candidate.amountIn,
+  ].join(':')
+  const now = Date.now()
+  const prior = rejectionEvidence.get(key)
+  if (
+    prior !== undefined &&
+    prior.reason === reason &&
+    now - prior.recordedAtMs < REJECTION_EVIDENCE_INTERVAL_MS
+  ) {
+    return
+  }
+  rejectionEvidence.set(key, { reason, recordedAtMs: now })
+  await appendEvidence(observationPath, {
+    recordedAt: new Date(now).toISOString(),
+    event: 'LIVE_CANDIDATE_REJECTED',
+    token: candidate.token.address,
+    tokenSymbol: candidate.token.symbol,
+    entryVenue: candidate.entryVenue,
+    entryPool: candidate.entryPool,
+    entryFee: candidate.entryFee,
+    exitVenue: candidate.exitVenue,
+    exitPool: candidate.exitPool,
+    exitFee: candidate.exitFee,
+    amountIn: candidate.amountIn,
+    grossProfit: candidate.exactGrossProfit,
+    quoteBlockNumber: candidate.blockNumber,
+    quoteBlockHash: candidate.blockHash,
+    refreshedGrossProfit: refreshedCandidate?.exactGrossProfit,
+    refreshedBlockNumber: refreshedCandidate?.blockNumber,
+    refreshedBlockHash: refreshedCandidate?.blockHash,
+    reason,
+  })
+}
+
 const fence = await acquireLiveFence(policy.stateDirectory)
 const shutdown = new AbortController()
 process.on('SIGTERM', () => {
@@ -244,15 +270,53 @@ try {
       (quote) => quote.disposition === 'QUOTE_FAILED',
     ).length
     let attempted = false
+    let executionEligibleCandidates = 0
     const gateReasons: string[] = []
     for (const candidate of positives) {
-      let plan: PreparedLivePlan
-      try {
-        plan = await prepareLivePlan(client, account, policy, candidate)
-      } catch (error) {
-        gateReasons.push(safeGateReason(error))
+      if (
+        candidate.exactGrossProfit === null ||
+        candidate.exactGrossProfit < policy.minimumContractProfit ||
+        candidate.exactGrossProfit <= policy.minimumNetProfit
+      ) {
+        const reason =
+          candidate.exactGrossProfit !== null &&
+          candidate.exactGrossProfit < policy.minimumContractProfit
+            ? '毛利低于合约利润底线'
+            : '毛利在计算 Gas 前已低于净利润底线'
+        gateReasons.push(reason)
+        await recordCandidateRejection(candidate, reason)
         continue
       }
+
+      let refreshedCandidate: BaseCycleQuote
+      try {
+        refreshedCandidate = await requoteBaseCycle(client, candidate)
+      } catch (error) {
+        const reason = safeGateReason(error)
+        gateReasons.push(reason)
+        await recordCandidateRejection(candidate, reason)
+        continue
+      }
+      if (
+        refreshedCandidate.disposition !== 'POSITIVE_GROSS' ||
+        refreshedCandidate.exactGrossProfit === null
+      ) {
+        const reason = '最新区块重报价后毛利消失'
+        gateReasons.push(reason)
+        await recordCandidateRejection(candidate, reason, refreshedCandidate)
+        continue
+      }
+
+      let plan: PreparedLivePlan
+      try {
+        plan = await prepareLivePlan(client, account, policy, refreshedCandidate)
+      } catch (error) {
+        const reason = safeGateReason(error)
+        gateReasons.push(reason)
+        await recordCandidateRejection(candidate, reason, refreshedCandidate)
+        continue
+      }
+      executionEligibleCandidates += 1
       const effect = await broadcastAndReconcile(client, policy, ledgerPath, plan)
       attempted = true
       if (effect.outcome === 'DISPUTED') {
@@ -263,6 +327,7 @@ try {
 
     const updatedSummary = summarizeLiveLedger(await readLiveLedger(ledgerPath))
     const latestBlock = scan.quotes.at(-1)?.blockNumber ?? null
+    const bestGrossProfit = positives[0]?.exactGrossProfit ?? null
     const heartbeat = {
       运行状态: '实盘监控中',
       钱包: account.address,
@@ -270,6 +335,8 @@ try {
       本轮检查路线: scan.quotes.length,
       实盘场所: ['Uniswap V2', 'Uniswap V3', 'PancakeSwap V3'],
       毛利为正候选: positives.length,
+      本轮最高毛利_ETH: bestGrossProfit === null ? null : formatEther(bestGrossProfit),
+      达到完整实盘门槛候选: executionEligibleCandidates,
       本轮是否广播: attempted,
       已确认盈利交易: updatedSummary.reconciledSuccessCount,
       已确认回滚交易: updatedSummary.reconciledRevertCount,
