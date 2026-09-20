@@ -14,7 +14,8 @@ void test('cross-venue shadow service has no signer, wallet, or shared live stat
   assert.match(unit, /^StateDirectory=atomic-cycle-shadow$/m)
   assert.match(unit, /^StateDirectoryMode=0755$/m)
   assert.match(unit, /^ReadWritePaths=\/var\/lib\/atomic-cycle-shadow$/m)
-  assert.match(unit, /cross-venue-shadow\.js --network all/)
+  assert.match(unit, /Environment=ATOMIC_CYCLE_SHADOW_NETWORK=robinhood/)
+  assert.match(unit, /cross-venue-shadow\.js --network \$\{ATOMIC_CYCLE_SHADOW_NETWORK\}/)
   assert.doesNotMatch(
     unit,
     /EnvironmentFile|LoadCredential|LIVE_APPROVED|atomic-cycle-engine\/live\.env/,

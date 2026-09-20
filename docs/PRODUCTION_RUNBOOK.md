@@ -71,6 +71,10 @@ credential、钱包、执行合约或交易账本。部署顺序：
 Shadow 可以与 Base live canary 同机运行，因为它们没有共享用户、状态目录、凭据、nonce owner 或写路径。升级
 Shadow 不得重启或改写 Base live unit。
 
+生产 unit 默认设置 `ATOMIC_CYCLE_SHADOW_NETWORK=robinhood`，只运行 Robinhood 路线，避免 BNB 读取和报价与
+当前实盘争用计算与 RPC 预算。恢复 BNB 前必须先重新核对它的独立正净收益证据，然后通过受审计的
+systemd 配置把该值改回 `all`；不得在运行中直接启动第二个 Shadow 写同一个快照文件。
+
 ## 激活后读回
 
 至少核对：
